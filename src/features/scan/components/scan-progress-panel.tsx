@@ -32,7 +32,7 @@ export function ScanProgressPanel() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold">
-              Scanning your Home directory
+              Scanning {progress?.targetLabel ?? "selected location"}
             </p>
             <p className="font-mono text-xs text-muted-foreground">
               {formatElapsed(progress?.elapsedMilliseconds ?? 0)} elapsed

@@ -18,6 +18,7 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
 struct ScanAccumulator {
     app_handle: Option<AppHandle>,
+    target_label: String,
     started_at: Instant,
     last_progress_emit: Instant,
     entries_visited: u64,
@@ -32,11 +33,12 @@ struct ScanAccumulator {
 }
 
 impl ScanAccumulator {
-    fn new(app_handle: Option<AppHandle>) -> Self {
+    fn new(app_handle: Option<AppHandle>, target_label: &str) -> Self {
         let started_at = Instant::now();
 
         Self {
             app_handle,
+            target_label: target_label.to_owned(),
             started_at,
             last_progress_emit: started_at,
             entries_visited: 0,
@@ -66,6 +68,7 @@ impl ScanAccumulator {
             let _ = app_handle.emit(
                 PROGRESS_EVENT_NAME,
                 ScanProgress {
+                    target_label: self.target_label.clone(),
                     entries_visited: self.entries_visited,
                     bytes_observed: self.total_size_bytes,
                     elapsed_milliseconds: self.started_at.elapsed().as_millis() as u64,
@@ -128,6 +131,27 @@ pub async fn scan_home_directory(
 }
 
 #[tauri::command]
+pub async fn scan_directory_path(
+    path: String,
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ScanSummary, String> {
+    let summary = tauri::async_runtime::spawn_blocking(move || {
+        scan_selected_directory_blocking(path, app_handle)
+    })
+    .await
+    .map_err(|_| "The folder scan could not finish.".to_owned())??;
+
+    let mut completed_scan = state
+        .completed_scan
+        .lock()
+        .map_err(|_| "DiskVacuum could not update its scan state.".to_owned())?;
+    *completed_scan = Some(summary.clone());
+
+    Ok(summary)
+}
+
+#[tauri::command]
 pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary>, String> {
     state
         .completed_scan
@@ -139,6 +163,20 @@ pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary
 fn scan_home_directory_blocking(app_handle: AppHandle) -> Result<ScanSummary, String> {
     let home_directory = resolve_home_directory()?;
     scan_directory(&home_directory, "Home directory", Some(app_handle))
+}
+
+fn scan_selected_directory_blocking(
+    path: String,
+    app_handle: AppHandle,
+) -> Result<ScanSummary, String> {
+    let selected_directory = validate_scan_root(Path::new(&path))?;
+    let folder_name = selected_directory
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("Selected folder");
+    let target_label = format!("Selected folder: {folder_name}");
+
+    scan_directory(&selected_directory, &target_label, Some(app_handle))
 }
 
 fn resolve_home_directory() -> Result<PathBuf, String> {
@@ -183,7 +221,7 @@ fn scan_directory(
     target_label: &str,
     app_handle: Option<AppHandle>,
 ) -> Result<ScanSummary, String> {
-    let mut accumulator = ScanAccumulator::new(app_handle);
+    let mut accumulator = ScanAccumulator::new(app_handle, target_label);
     accumulator.emit_progress(true);
 
     let root_entries = fs::read_dir(root)

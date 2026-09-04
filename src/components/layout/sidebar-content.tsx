@@ -4,6 +4,7 @@ import { HardDriveIcon } from "lucide-react";
 import { navigationGroups } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
+import { ScanFolderButton } from "@/features/scan/components/scan-folder-button";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { useScanStore } from "@/stores/scan-store";
@@ -51,9 +52,9 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
           >
             Home
           </ScanHomeButton>
-          <Button variant="outline" size="sm" disabled>
+          <ScanFolderButton variant="outline" size="sm">
             Folder
-          </Button>
+          </ScanFolderButton>
         </div>
       </div>
 

@@ -1,11 +1,11 @@
 import {
-  FolderOpenIcon,
   HardDriveIcon,
   ShieldCheckIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
+import { ScanFolderButton } from "@/features/scan/components/scan-folder-button";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
 import { useScanStore } from "@/stores/scan-store";
@@ -43,10 +43,7 @@ export function NoScanSection() {
               Scan Drive
             </Button>
             <ScanHomeButton variant="outline" />
-            <Button variant="outline" disabled>
-              <FolderOpenIcon data-icon="inline-start" />
-              Choose Folder
-            </Button>
+            <ScanFolderButton variant="outline" />
           </div>
         </div>
         <div className="rounded-xl border border-border bg-muted/35 p-4">

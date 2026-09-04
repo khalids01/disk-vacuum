@@ -1,9 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { HomeIcon, LoaderCircleIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { scanHomeDirectory } from "@/features/scan/api/scan-api";
-import { currentScanQuery } from "@/features/scan/api/scan-queries";
+import { useScanMutation } from "@/features/scan/hooks/use-scan-mutation";
 import { useScanStore } from "@/stores/scan-store";
 
 interface ScanHomeButtonProps
@@ -20,27 +19,8 @@ export function ScanHomeButton({
   compact = false,
   ...buttonProps
 }: ScanHomeButtonProps) {
-  const queryClient = useQueryClient();
   const status = useScanStore((state) => state.status);
-  const startScan = useScanStore((state) => state.startScan);
-  const completeScan = useScanStore((state) => state.completeScan);
-  const failScan = useScanStore((state) => state.failScan);
-  const scanHome = useMutation({
-    mutationFn: scanHomeDirectory,
-    onMutate: startScan,
-    onSuccess: (summary) => {
-      queryClient.setQueryData(currentScanQuery.queryKey, summary);
-      completeScan();
-    },
-    onError: (error) => {
-      failScan(
-        error instanceof Error
-          ? error.message
-          : "DiskVacuum could not complete the home scan.",
-      );
-    },
-  });
-
+  const scanHome = useScanMutation(scanHomeDirectory);
   const isScanning = status === "scanning" || scanHome.isPending;
 
   return (

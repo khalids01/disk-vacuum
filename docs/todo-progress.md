@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Validate the first real Home-directory scan in Tauri**
+- Current task: **Validate real Home and selected-folder scans in Tauri**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -443,7 +443,7 @@ Only create when needed.
 - [x] Scan path validation
 - [x] Home target
 - [ ] Drive/root target
-- [ ] Custom folder target
+- [x] Custom folder target
 - [ ] Parallel filesystem walk
 - [x] Permission errors handled
 - [x] Symlink behavior defined

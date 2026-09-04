@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 export type ScanNodeKind = "file" | "directory";
 
 export interface ScanProgress {
+  targetLabel: string;
   entriesVisited: number;
   bytesObserved: number;
   elapsedMilliseconds: number;
@@ -34,4 +35,8 @@ export function getCurrentScan() {
 
 export function scanHomeDirectory() {
   return invoke<ScanSummary>("scan_home_directory");
+}
+
+export function scanDirectoryPath(path: string) {
+  return invoke<ScanSummary>("scan_directory_path", { path });
 }
