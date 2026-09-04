@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Phase 4 — App Shell**
-- Current task: **Independent workspace scrolling and responsive navigation**
+- Current phase: **Backend Phase 1 — System Info**
+- Current task: **Validate real device information in Tauri on macOS and Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -78,15 +78,15 @@
 
 Create only required modules; do not create empty architecture for appearance.
 
-- [ ] Keep `main.rs` minimal
-- [ ] Keep Tauri bootstrap in `lib.rs`
+- [x] Keep `main.rs` minimal
+- [x] Keep Tauri bootstrap in `lib.rs`
 - [ ] Add managed `app_state` when first needed
-- [ ] Add `features` module when first backend feature begins
+- [x] Add `features` module when first backend feature begins
 - [ ] Add `platform` module when platform behavior is introduced
 - [ ] Add `safety` module before destructive operations
 - [ ] Add `common` helpers only for proven shared logic
-- [ ] Verify `cargo fmt`
-- [ ] Verify `cargo clippy`
+- [x] Verify `cargo fmt`
+- [x] Verify `cargo clippy`
 
 ---
 
@@ -356,15 +356,15 @@ Only create when needed.
 
 # Phase 15 — System Dashboard UI
 
-- [ ] Page header
-- [ ] Memory card
-- [ ] Processor card
-- [ ] Storage volumes
-- [ ] System card
-- [ ] External/removable indicator
-- [ ] Empty/error handling
-- [ ] Tablet layout
-- [ ] Mobile single-column layout
+- [x] Page header
+- [x] Memory card
+- [x] Processor card
+- [x] Storage volumes
+- [x] System card
+- [x] External/removable indicator
+- [x] Empty/error handling
+- [x] Tablet layout
+- [x] Mobile single-column layout
 
 ---
 
@@ -419,20 +419,20 @@ Only create when needed.
 
 # Backend Phase 1 — System Info
 
-- [ ] Define Rust models
-- [ ] Implement system info command
-- [ ] Memory
-- [ ] CPU
-- [ ] OS
-- [ ] Hostname
-- [ ] Uptime
-- [ ] Volumes/mounts
+- [x] Define Rust models
+- [x] Implement system info command
+- [x] Memory
+- [x] CPU
+- [x] OS
+- [x] Hostname
+- [x] Uptime
+- [x] Volumes/mounts
 - [ ] macOS verified
 - [ ] Linux verified
-- [ ] TypeScript query wrapper
-- [ ] Wire System page
-- [ ] Error handling
-- [ ] Tests where reasonable
+- [x] TypeScript query wrapper
+- [x] Wire System page
+- [x] Error handling
+- [x] Tests where reasonable
 
 ---
 
