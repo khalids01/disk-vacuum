@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useEffect } from "react";
 
 interface PageHeaderProps {
   eyebrow: string;
@@ -13,6 +14,10 @@ export function PageHeader({
   description,
   actions,
 }: PageHeaderProps) {
+  useEffect(() => {
+    document.title = `${title} | DiskVacuum`;
+  }, [title]);
+
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div className="max-w-2xl">

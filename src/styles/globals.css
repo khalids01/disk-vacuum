@@ -113,7 +113,7 @@
   }
 
   body {
-    @apply m-0 bg-background text-foreground antialiased;
+    @apply m-0 overflow-hidden bg-background text-foreground antialiased;
   }
 
   button:not(:disabled),

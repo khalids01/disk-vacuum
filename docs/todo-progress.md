@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Phase 5 — Routes & Page Skeletons**
-- Current task: **Reviewable feature routes and no-scan skeletons**
+- Current phase: **Phase 4 — App Shell**
+- Current task: **Independent workspace scrolling and responsive navigation**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -135,7 +135,7 @@ Create only required modules; do not create empty architecture for appearance.
 ## Responsive
 
 - [ ] Compact desktop sidebar behavior
-- [ ] Tablet drawer/rail behavior
+- [x] Tablet drawer/rail behavior
 - [x] Mobile top app bar
 - [ ] Mobile bottom navigation
 - [ ] “More” navigation sheet
@@ -157,8 +157,8 @@ Create only required modules; do not create empty architecture for appearance.
 - [x] `/system`
 - [x] `/settings`
 - [x] Default route redirects/lands correctly
-- [ ] 404/fallback behavior
-- [ ] Route title/active-nav behavior
+- [x] 404/fallback behavior
+- [x] Route title/active-nav behavior
 
 ---
 

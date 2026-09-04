@@ -1,11 +1,25 @@
-import { Link } from "@tanstack/react-router";
 import { MenuIcon, XIcon } from "lucide-react";
-import { useState } from "react";
-import { navigationGroups } from "@/components/layout/navigation";
+import { useEffect, useState } from "react";
+import { SidebarContent } from "@/components/layout/sidebar-content";
 import { Button } from "@/components/ui/button";
 
 export function MobileNavigation() {
   const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [isOpen]);
 
   return (
     <div className="lg:hidden">
@@ -13,39 +27,44 @@ export function MobileNavigation() {
         variant="ghost"
         size="icon"
         aria-label={isOpen ? "Close navigation" : "Open navigation"}
+        aria-controls="mobile-navigation-drawer"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
-        {isOpen ? <XIcon /> : <MenuIcon />}
+        <MenuIcon />
       </Button>
       {isOpen && (
-        <nav className="absolute inset-x-0 top-16 z-20 max-h-[calc(100svh-4rem)] overflow-y-auto border-b border-border bg-background p-4 shadow-lg">
-          <div className="mx-auto grid max-w-2xl gap-5 sm:grid-cols-3">
-            {navigationGroups.map((group) => (
-              <div key={group.label}>
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {group.label}
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Close navigation"
+            className="absolute inset-0 bg-black/45"
+            onClick={() => setIsOpen(false)}
+          />
+          <aside
+            id="mobile-navigation-drawer"
+            aria-label="DiskVacuum navigation"
+            className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-border bg-sidebar shadow-2xl"
+          >
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+              <div>
+                <p className="text-sm font-semibold tracking-tight">
+                  DiskVacuum
                 </p>
-                <div className="space-y-1">
-                  {group.items.map((item) => (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      onClick={() => setIsOpen(false)}
-                      activeProps={{
-                        className: "bg-accent text-accent-foreground",
-                      }}
-                      className="flex min-h-11 items-center gap-2 rounded-md px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                    >
-                      <item.icon className="size-4" />
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">Storage utility</p>
               </div>
-            ))}
-          </div>
-        </nav>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Close navigation"
+                onClick={() => setIsOpen(false)}
+              >
+                <XIcon />
+              </Button>
+            </div>
+            <SidebarContent onNavigate={() => setIsOpen(false)} />
+          </aside>
+        </div>
       )}
     </div>
   );
