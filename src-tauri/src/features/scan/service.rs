@@ -2,19 +2,25 @@ use std::{
     cmp::Reverse,
     env, fs,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 use crate::{
     app_state::AppState,
-    features::scan::model::{ScanNodeKind, ScanNodeSummary, ScanSummary},
+    features::scan::model::{ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary},
 };
 
 const MAX_TOP_LEVEL_ITEMS: usize = 24;
+const PROGRESS_EVENT_NAME: &str = "scan-progress";
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
 struct ScanAccumulator {
+    app_handle: Option<AppHandle>,
+    started_at: Instant,
+    last_progress_emit: Instant,
+    entries_visited: u64,
     total_size_bytes: u64,
     file_count: u64,
     directory_count: u64,
@@ -26,8 +32,14 @@ struct ScanAccumulator {
 }
 
 impl ScanAccumulator {
-    fn new() -> Self {
+    fn new(app_handle: Option<AppHandle>) -> Self {
+        let started_at = Instant::now();
+
         Self {
+            app_handle,
+            started_at,
+            last_progress_emit: started_at,
+            entries_visited: 0,
             total_size_bytes: 0,
             file_count: 0,
             directory_count: 1,
@@ -36,6 +48,29 @@ impl ScanAccumulator {
             skipped_symlink_count: 0,
             skipped_special_file_count: 0,
             top_level_items: Vec::with_capacity(MAX_TOP_LEVEL_ITEMS),
+        }
+    }
+
+    fn record_entry_visit(&mut self) {
+        self.entries_visited += 1;
+        self.emit_progress(false);
+    }
+
+    fn emit_progress(&mut self, force: bool) {
+        if !force && self.last_progress_emit.elapsed() < PROGRESS_INTERVAL {
+            return;
+        }
+
+        self.last_progress_emit = Instant::now();
+        if let Some(app_handle) = &self.app_handle {
+            let _ = app_handle.emit(
+                PROGRESS_EVENT_NAME,
+                ScanProgress {
+                    entries_visited: self.entries_visited,
+                    bytes_observed: self.total_size_bytes,
+                    elapsed_milliseconds: self.started_at.elapsed().as_millis() as u64,
+                },
+            );
         }
     }
 
@@ -74,10 +109,14 @@ struct MeasuredEntry {
 }
 
 #[tauri::command]
-pub async fn scan_home_directory(state: State<'_, AppState>) -> Result<ScanSummary, String> {
-    let summary = tauri::async_runtime::spawn_blocking(scan_home_directory_blocking)
-        .await
-        .map_err(|_| "The home scan could not finish.".to_owned())??;
+pub async fn scan_home_directory(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ScanSummary, String> {
+    let summary =
+        tauri::async_runtime::spawn_blocking(move || scan_home_directory_blocking(app_handle))
+            .await
+            .map_err(|_| "The home scan could not finish.".to_owned())??;
 
     let mut completed_scan = state
         .completed_scan
@@ -97,9 +136,9 @@ pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary
         .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())
 }
 
-fn scan_home_directory_blocking() -> Result<ScanSummary, String> {
+fn scan_home_directory_blocking(app_handle: AppHandle) -> Result<ScanSummary, String> {
     let home_directory = resolve_home_directory()?;
-    scan_directory(&home_directory, "Home directory")
+    scan_directory(&home_directory, "Home directory", Some(app_handle))
 }
 
 fn resolve_home_directory() -> Result<PathBuf, String> {
@@ -139,8 +178,13 @@ fn validate_scan_root(path: &Path) -> Result<PathBuf, String> {
     Ok(canonical_path)
 }
 
-fn scan_directory(root: &Path, target_label: &str) -> Result<ScanSummary, String> {
-    let mut accumulator = ScanAccumulator::new();
+fn scan_directory(
+    root: &Path,
+    target_label: &str,
+    app_handle: Option<AppHandle>,
+) -> Result<ScanSummary, String> {
+    let mut accumulator = ScanAccumulator::new(app_handle);
+    accumulator.emit_progress(true);
 
     let root_entries = fs::read_dir(root)
         .map_err(|_| "The selected scan location could not be read.".to_owned())?;
@@ -167,6 +211,7 @@ fn scan_directory(root: &Path, target_label: &str) -> Result<ScanSummary, String
         });
     }
 
+    accumulator.emit_progress(true);
     accumulator
         .top_level_items
         .sort_by_key(|item| Reverse(item.size_bytes));
@@ -192,6 +237,8 @@ fn scan_directory(root: &Path, target_label: &str) -> Result<ScanSummary, String
 }
 
 fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> Option<MeasuredEntry> {
+    accumulator.record_entry_visit();
+
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => {
@@ -275,7 +322,8 @@ mod tests {
         fs::write(fixture.join("nested").join("large.txt"), b"abcdefgh")
             .expect("fixture file should be written");
 
-        let summary = scan_directory(&fixture, "Fixture").expect("fixture scan should succeed");
+        let summary =
+            scan_directory(&fixture, "Fixture", None).expect("fixture scan should succeed");
 
         assert_eq!(summary.total_size_bytes, 11);
         assert_eq!(summary.file_count, 2);

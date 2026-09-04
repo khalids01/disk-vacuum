@@ -2,6 +2,14 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ScanProgress {
+    pub entries_visited: u64,
+    pub bytes_observed: u64,
+    pub elapsed_milliseconds: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanNodeSummary {
     pub id: String,
     pub name: String,

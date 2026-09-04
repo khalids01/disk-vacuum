@@ -454,12 +454,12 @@ Only create when needed.
 - [ ] Category classification
 - [ ] Bounded treemap summary
 - [ ] Full index kept in Rust
-- [ ] Progress events throttled
+- [x] Progress events throttled
 - [ ] Cancellation
 - [x] Atomic completed-state replacement
 - [x] Previous scan preserved on new-scan failure
 - [x] Frontend scan hook
-- [ ] Frontend scan progress
+- [x] Frontend scan progress
 - [ ] macOS tested
 - [ ] Linux tested
 

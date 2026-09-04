@@ -2,6 +2,7 @@ import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
+import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
 interface ScanSummarySectionProps {
@@ -17,6 +18,7 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
 
   return (
     <div className="space-y-5">
+      <ScanProgressPanel />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
           label="Indexed size"

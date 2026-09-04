@@ -7,10 +7,12 @@ import {
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
+import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
 import { useScanStore } from "@/stores/scan-store";
 
 export function NoScanSection() {
   const errorMessage = useScanStore((state) => state.errorMessage);
+  const scanStatus = useScanStore((state) => state.status);
 
   return (
     <SectionCard className="overflow-hidden">
@@ -58,6 +60,11 @@ export function NoScanSection() {
           </p>
         </div>
       </div>
+      {scanStatus === "scanning" && (
+        <div className="border-t border-border p-5 sm:px-7 lg:px-8">
+          <ScanProgressPanel />
+        </div>
+      )}
     </SectionCard>
   );
 }

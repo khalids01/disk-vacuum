@@ -15,6 +15,8 @@ interface SidebarContentProps {
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const { data: currentScan } = useQuery(currentScanQuery);
   const scanStatus = useScanStore((state) => state.status);
+  const scanProgress = useScanStore((state) => state.progress);
+  const progressLabel = `${(scanProgress?.entriesVisited ?? 0).toLocaleString()} items inspected`;
 
   return (
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
@@ -26,12 +28,14 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
               {currentScan.targetLabel}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatBytes(currentScan.totalSizeBytes)} indexed
+              {scanStatus === "scanning"
+                ? progressLabel
+                : `${formatBytes(currentScan.totalSizeBytes)} indexed`}
             </p>
           </>
         ) : (
           <p className="mt-1 text-sm font-medium">
-            {scanStatus === "scanning" ? "Scanning Home…" : "No scan selected"}
+            {scanStatus === "scanning" ? progressLabel : "No scan selected"}
           </p>
         )}
         <Button className="mt-3 w-full" size="sm" disabled>

@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type ScanNodeKind = "file" | "directory";
 
+export interface ScanProgress {
+  entriesVisited: number;
+  bytesObserved: number;
+  elapsedMilliseconds: number;
+}
+
 export interface ScanNodeSummary {
   id: string;
   name: string;
