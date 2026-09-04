@@ -1,5 +1,6 @@
 import { MenuIcon, XIcon } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { SidebarContent } from "@/components/layout/sidebar-content";
 import { Button } from "@/components/ui/button";
 
@@ -33,39 +34,43 @@ export function MobileNavigation() {
       >
         <MenuIcon />
       </Button>
-      {isOpen && (
-        <div className="fixed inset-0 z-50">
-          <button
-            type="button"
-            aria-label="Close navigation"
-            className="absolute inset-0 bg-black/45"
-            onClick={() => setIsOpen(false)}
-          />
-          <aside
-            id="mobile-navigation-drawer"
-            aria-label="DiskVacuum navigation"
-            className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-border bg-sidebar shadow-2xl"
-          >
-            <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
-              <div>
-                <p className="text-sm font-semibold tracking-tight">
-                  DiskVacuum
-                </p>
-                <p className="text-xs text-muted-foreground">Storage utility</p>
+      {isOpen &&
+        createPortal(
+          <div className="fixed inset-0 z-50">
+            <button
+              type="button"
+              aria-label="Close navigation"
+              className="absolute inset-0 bg-black/45"
+              onClick={() => setIsOpen(false)}
+            />
+            <aside
+              id="mobile-navigation-drawer"
+              aria-label="DiskVacuum navigation"
+              className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-border bg-sidebar shadow-2xl"
+            >
+              <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
+                <div>
+                  <p className="text-sm font-semibold tracking-tight">
+                    DiskVacuum
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Storage utility
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Close navigation"
+                  onClick={() => setIsOpen(false)}
+                >
+                  <XIcon />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label="Close navigation"
-                onClick={() => setIsOpen(false)}
-              >
-                <XIcon />
-              </Button>
-            </div>
-            <SidebarContent onNavigate={() => setIsOpen(false)} />
-          </aside>
-        </div>
-      )}
+              <SidebarContent onNavigate={() => setIsOpen(false)} />
+            </aside>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
