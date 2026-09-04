@@ -1,13 +1,17 @@
 import {
   FolderOpenIcon,
   HardDriveIcon,
-  HomeIcon,
   ShieldCheckIcon,
+  TriangleAlertIcon,
 } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
+import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
+import { useScanStore } from "@/stores/scan-store";
 
 export function NoScanSection() {
+  const errorMessage = useScanStore((state) => state.errorMessage);
+
   return (
     <SectionCard className="overflow-hidden">
       <div className="grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_320px] lg:p-8">
@@ -25,15 +29,18 @@ export function NoScanSection() {
             DiskVacuum analyzes the folder or drive you choose, then presents
             the largest consumers and possible cleanup candidates for review.
           </p>
+          {errorMessage && (
+            <div className="mt-4 flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-foreground">
+              <TriangleAlertIcon className="mt-0.5 size-4 shrink-0 text-amber-500" />
+              <p>{errorMessage}</p>
+            </div>
+          )}
           <div className="mt-6 flex flex-wrap gap-2">
             <Button disabled>
               <HardDriveIcon data-icon="inline-start" />
               Scan Drive
             </Button>
-            <Button variant="outline" disabled>
-              <HomeIcon data-icon="inline-start" />
-              Scan Home
-            </Button>
+            <ScanHomeButton variant="outline" />
             <Button variant="outline" disabled>
               <FolderOpenIcon data-icon="inline-start" />
               Choose Folder
@@ -46,8 +53,8 @@ export function NoScanSection() {
             Safety first
           </div>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Scans only inspect storage. DiskVacuum will always show a review
-            before any cleanup action is available.
+            This initial scan only reads metadata. Symlinks are not followed,
+            and DiskVacuum will always show a review before cleanup is added.
           </p>
         </div>
       </div>

@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 1 — System Info**
-- Current task: **Validate real device information in Tauri on macOS and Linux**
+- Current phase: **Backend Phase 2 — Scan Engine**
+- Current task: **Validate the first real Home-directory scan in Tauri**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -59,7 +59,7 @@
 
 ## Feature directories
 
-- [ ] `features/scan`
+- [x] `features/scan`
 - [x] `features/overview`
 - [x] `features/explorer`
 - [x] `features/cleanup`
@@ -122,7 +122,7 @@ Create only required modules; do not create empty architecture for appearance.
 - [x] App shell
 - [x] Sidebar
 - [x] Scan controls area
-- [ ] Storage summary card
+- [x] Storage summary card
 - [x] Navigation groups
 - [x] Active states
 - [x] Disabled states
@@ -198,9 +198,9 @@ Only create when needed.
 
 ## UI states
 
-- [ ] No scan
-- [ ] Scanning
-- [ ] Scan complete
+- [x] No scan
+- [x] Scanning
+- [x] Scan complete
 - [ ] Scan failed
 - [ ] Scan cancelled
 - [ ] Permission-limited scan
@@ -438,27 +438,27 @@ Only create when needed.
 
 # Backend Phase 2 — Scan Engine
 
-- [ ] Define scan models
-- [ ] Define managed scan state
-- [ ] Scan path validation
-- [ ] Home target
+- [x] Define scan models
+- [x] Define managed scan state
+- [x] Scan path validation
+- [x] Home target
 - [ ] Drive/root target
 - [ ] Custom folder target
 - [ ] Parallel filesystem walk
-- [ ] Permission errors handled
-- [ ] Symlink behavior defined
+- [x] Permission errors handled
+- [x] Symlink behavior defined
 - [ ] Hard links considered
 - [ ] Mounted filesystem behavior defined
-- [ ] Size aggregation
-- [ ] File/folder counts
+- [x] Size aggregation
+- [x] File/folder counts
 - [ ] Category classification
 - [ ] Bounded treemap summary
 - [ ] Full index kept in Rust
 - [ ] Progress events throttled
 - [ ] Cancellation
-- [ ] Atomic completed-state replacement
-- [ ] Previous scan preserved on new-scan failure
-- [ ] Frontend scan hook
+- [x] Atomic completed-state replacement
+- [x] Previous scan preserved on new-scan failure
+- [x] Frontend scan hook
 - [ ] Frontend scan progress
 - [ ] macOS tested
 - [ ] Linux tested

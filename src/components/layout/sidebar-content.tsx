@@ -1,26 +1,47 @@
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { HardDriveIcon } from "lucide-react";
 import { navigationGroups } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
+import { currentScanQuery } from "@/features/scan/api/scan-queries";
+import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
+import { formatBytes } from "@/features/scan/lib/format-bytes";
+import { useScanStore } from "@/stores/scan-store";
 
 interface SidebarContentProps {
   onNavigate?: () => void;
 }
 
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
+  const { data: currentScan } = useQuery(currentScanQuery);
+  const scanStatus = useScanStore((state) => state.status);
+
   return (
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
       <div className="rounded-xl border border-border bg-card p-3">
         <p className="text-xs font-medium text-muted-foreground">Scan target</p>
-        <p className="mt-1 text-sm font-medium">No scan selected</p>
+        {currentScan ? (
+          <>
+            <p className="mt-1 text-sm font-medium">
+              {currentScan.targetLabel}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatBytes(currentScan.totalSizeBytes)} indexed
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm font-medium">
+            {scanStatus === "scanning" ? "Scanning Home…" : "No scan selected"}
+          </p>
+        )}
         <Button className="mt-3 w-full" size="sm" disabled>
           <HardDriveIcon data-icon="inline-start" />
           Scan Drive
         </Button>
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <ScanHomeButton className="w-full" variant="outline" size="sm">
             Home
-          </Button>
+          </ScanHomeButton>
           <Button variant="outline" size="sm" disabled>
             Folder
           </Button>
