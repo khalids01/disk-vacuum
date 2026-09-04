@@ -37,7 +37,7 @@
 - [x] Add/verify Rust `cargo fmt`
 - [x] Add/verify Rust `cargo clippy`
 - [x] Confirm clean `bun run build`
-- [ ] Commit clean baseline before structural work
+- [x] Commit clean baseline before structural work
 
 ---
 
