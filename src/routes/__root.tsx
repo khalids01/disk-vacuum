@@ -1,4 +1,5 @@
 import { Link, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { QueryClient } from "@tanstack/react-query";
 
 interface RouterContext {
@@ -13,10 +14,11 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function RootLayout() {
   return (
     <div className="min-h-svh bg-background text-foreground">
-      <header className="border-b border-border px-6 py-4">
+      <header className="flex items-center justify-between border-b border-border px-6 py-4">
         <Link to="/" className="text-sm font-semibold tracking-tight">
           Disk Vacuum
         </Link>
+        <ThemeToggle />
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-8">
         <Outlet />
