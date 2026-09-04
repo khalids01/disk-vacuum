@@ -1,56 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import {
-  BotIcon,
-  Code2Icon,
-  CopyIcon,
-  FilesIcon,
-  FolderSearch2Icon,
-  HardDriveIcon,
-  type LucideIcon,
-  SettingsIcon,
-  SparklesIcon,
-  Trash2Icon,
-} from "lucide-react";
+import { HardDriveIcon } from "lucide-react";
+import { navigationGroups } from "@/components/layout/navigation";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-
-interface NavigationItem {
-  label: string;
-  icon: LucideIcon;
-  to?: "/overview";
-}
-
-interface NavigationGroup {
-  label: string;
-  items: NavigationItem[];
-}
-
-const navigationGroups: NavigationGroup[] = [
-  {
-    label: "Explore",
-    items: [
-      { label: "Space Map", icon: HardDriveIcon, to: "/overview" as const },
-    ],
-  },
-  {
-    label: "Cleanup",
-    items: [
-      { label: "Cleanup Hub", icon: Trash2Icon },
-      { label: "Large Files", icon: FilesIcon },
-      { label: "Duplicates", icon: CopyIcon },
-      { label: "Developer", icon: Code2Icon },
-      { label: "AI Storage", icon: BotIcon },
-      { label: "App Leftovers", icon: SparklesIcon },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { label: "Explorer", icon: FolderSearch2Icon },
-      { label: "Settings", icon: SettingsIcon },
-    ],
-  },
-];
 
 export function Sidebar() {
   return (
@@ -91,41 +42,19 @@ export function Sidebar() {
               {group.label}
             </p>
             <div className="space-y-0.5">
-              {group.items.map((item) => {
-                const content = (
-                  <>
-                    <item.icon className="size-4" />
-                    <span>{item.label}</span>
-                    {!item.to && (
-                      <span className="ml-auto text-[10px] text-muted-foreground">
-                        Soon
-                      </span>
-                    )}
-                  </>
-                );
-
-                return item.to ? (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    activeProps={{
-                      className: "bg-accent text-accent-foreground",
-                    }}
-                    className="flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-                  >
-                    {content}
-                  </Link>
-                ) : (
-                  <div
-                    key={item.label}
-                    className={cn(
-                      "flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground/60",
-                    )}
-                  >
-                    {content}
-                  </div>
-                );
-              })}
+              {group.items.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  activeProps={{
+                    className: "bg-accent text-accent-foreground",
+                  }}
+                  className="flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                >
+                  <item.icon className="size-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
             </div>
           </div>
         ))}

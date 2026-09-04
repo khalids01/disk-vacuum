@@ -1,10 +1,12 @@
 import { RotateCwIcon, SearchIcon } from "lucide-react";
+import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 export function TopCommandBar() {
   return (
-    <header className="flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-6">
+    <header className="relative flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-6">
+      <MobileNavigation />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold lg:hidden">DiskVacuum</p>
         <p className="hidden text-sm text-muted-foreground lg:block">

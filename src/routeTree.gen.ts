@@ -10,11 +10,55 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AiStorageRouteImport } from './routes/ai-storage'
+import { Route as AppLeftoversRouteImport } from './routes/app-leftovers'
+import { Route as CleanupRouteImport } from './routes/cleanup'
+import { Route as DeveloperCleanupRouteImport } from './routes/developer-cleanup'
+import { Route as DuplicatesRouteImport } from './routes/duplicates'
+import { Route as ExplorerRouteImport } from './routes/explorer'
+import { Route as LargeFilesRouteImport } from './routes/large-files'
 import { Route as OverviewRouteImport } from './routes/overview'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SystemRouteImport } from './routes/system'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiStorageRoute = AiStorageRouteImport.update({
+  id: '/ai-storage',
+  path: '/ai-storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppLeftoversRoute = AppLeftoversRouteImport.update({
+  id: '/app-leftovers',
+  path: '/app-leftovers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CleanupRoute = CleanupRouteImport.update({
+  id: '/cleanup',
+  path: '/cleanup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeveloperCleanupRoute = DeveloperCleanupRouteImport.update({
+  id: '/developer-cleanup',
+  path: '/developer-cleanup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DuplicatesRoute = DuplicatesRouteImport.update({
+  id: '/duplicates',
+  path: '/duplicates',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExplorerRoute = ExplorerRouteImport.update({
+  id: '/explorer',
+  path: '/explorer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LargeFilesRoute = LargeFilesRouteImport.update({
+  id: '/large-files',
+  path: '/large-files',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OverviewRoute = OverviewRouteImport.update({
@@ -22,31 +66,111 @@ const OverviewRoute = OverviewRouteImport.update({
   path: '/overview',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SystemRoute = SystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ai-storage': typeof AiStorageRoute
+  '/app-leftovers': typeof AppLeftoversRoute
+  '/cleanup': typeof CleanupRoute
+  '/developer-cleanup': typeof DeveloperCleanupRoute
+  '/duplicates': typeof DuplicatesRoute
+  '/explorer': typeof ExplorerRoute
+  '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ai-storage': typeof AiStorageRoute
+  '/app-leftovers': typeof AppLeftoversRoute
+  '/cleanup': typeof CleanupRoute
+  '/developer-cleanup': typeof DeveloperCleanupRoute
+  '/duplicates': typeof DuplicatesRoute
+  '/explorer': typeof ExplorerRoute
+  '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ai-storage': typeof AiStorageRoute
+  '/app-leftovers': typeof AppLeftoversRoute
+  '/cleanup': typeof CleanupRoute
+  '/developer-cleanup': typeof DeveloperCleanupRoute
+  '/duplicates': typeof DuplicatesRoute
+  '/explorer': typeof ExplorerRoute
+  '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
+  '/settings': typeof SettingsRoute
+  '/system': typeof SystemRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/overview'
+  fullPaths:
+    | '/'
+    | '/ai-storage'
+    | '/app-leftovers'
+    | '/cleanup'
+    | '/developer-cleanup'
+    | '/duplicates'
+    | '/explorer'
+    | '/large-files'
+    | '/overview'
+    | '/settings'
+    | '/system'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/overview'
-  id: '__root__' | '/' | '/overview'
+  to:
+    | '/'
+    | '/ai-storage'
+    | '/app-leftovers'
+    | '/cleanup'
+    | '/developer-cleanup'
+    | '/duplicates'
+    | '/explorer'
+    | '/large-files'
+    | '/overview'
+    | '/settings'
+    | '/system'
+  id:
+    | '__root__'
+    | '/'
+    | '/ai-storage'
+    | '/app-leftovers'
+    | '/cleanup'
+    | '/developer-cleanup'
+    | '/duplicates'
+    | '/explorer'
+    | '/large-files'
+    | '/overview'
+    | '/settings'
+    | '/system'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AiStorageRoute: typeof AiStorageRoute
+  AppLeftoversRoute: typeof AppLeftoversRoute
+  CleanupRoute: typeof CleanupRoute
+  DeveloperCleanupRoute: typeof DeveloperCleanupRoute
+  DuplicatesRoute: typeof DuplicatesRoute
+  ExplorerRoute: typeof ExplorerRoute
+  LargeFilesRoute: typeof LargeFilesRoute
   OverviewRoute: typeof OverviewRoute
+  SettingsRoute: typeof SettingsRoute
+  SystemRoute: typeof SystemRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -58,6 +182,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ai-storage': {
+      id: '/ai-storage'
+      path: '/ai-storage'
+      fullPath: '/ai-storage'
+      preLoaderRoute: typeof AiStorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app-leftovers': {
+      id: '/app-leftovers'
+      path: '/app-leftovers'
+      fullPath: '/app-leftovers'
+      preLoaderRoute: typeof AppLeftoversRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cleanup': {
+      id: '/cleanup'
+      path: '/cleanup'
+      fullPath: '/cleanup'
+      preLoaderRoute: typeof CleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/developer-cleanup': {
+      id: '/developer-cleanup'
+      path: '/developer-cleanup'
+      fullPath: '/developer-cleanup'
+      preLoaderRoute: typeof DeveloperCleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/duplicates': {
+      id: '/duplicates'
+      path: '/duplicates'
+      fullPath: '/duplicates'
+      preLoaderRoute: typeof DuplicatesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/explorer': {
+      id: '/explorer'
+      path: '/explorer'
+      fullPath: '/explorer'
+      preLoaderRoute: typeof ExplorerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/large-files': {
+      id: '/large-files'
+      path: '/large-files'
+      fullPath: '/large-files'
+      preLoaderRoute: typeof LargeFilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/overview': {
       id: '/overview'
       path: '/overview'
@@ -65,12 +238,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OverviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/system': {
+      id: '/system'
+      path: '/system'
+      fullPath: '/system'
+      preLoaderRoute: typeof SystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AiStorageRoute: AiStorageRoute,
+  AppLeftoversRoute: AppLeftoversRoute,
+  CleanupRoute: CleanupRoute,
+  DeveloperCleanupRoute: DeveloperCleanupRoute,
+  DuplicatesRoute: DuplicatesRoute,
+  ExplorerRoute: ExplorerRoute,
+  LargeFilesRoute: LargeFilesRoute,
   OverviewRoute: OverviewRoute,
+  SettingsRoute: SettingsRoute,
+  SystemRoute: SystemRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

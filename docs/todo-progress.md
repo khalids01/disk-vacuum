@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Phase 0 — Baseline**
-- Current task: **Interactive Tauri and macOS baseline validation**
+- Current phase: **Phase 5 — Routes & Page Skeletons**
+- Current task: **Reviewable feature routes and no-scan skeletons**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -43,33 +43,33 @@
 
 # Phase 1 — Frontend Project Structure
 
-- [ ] Create `src/app`
-- [ ] Create `src/routes`
-- [ ] Create `src/components/core`
-- [ ] Create `src/components/layout`
-- [ ] Create `src/features`
-- [ ] Create `src/lib`
-- [ ] Create `src/styles`
-- [ ] Configure TanStack Router
-- [ ] Create app provider composition
-- [ ] Configure TanStack Query
-- [ ] Configure Zustand location for global stores
-- [ ] Keep route files thin
+- [x] Create `src/app`
+- [x] Create `src/routes`
+- [x] Create `src/components/core`
+- [x] Create `src/components/layout`
+- [x] Create `src/features`
+- [x] Create `src/lib`
+- [x] Create `src/styles`
+- [x] Configure TanStack Router
+- [x] Create app provider composition
+- [x] Configure TanStack Query
+- [x] Configure Zustand location for global stores
+- [x] Keep route files thin
 - [ ] Verify project still runs
 
 ## Feature directories
 
 - [ ] `features/scan`
-- [ ] `features/overview`
-- [ ] `features/explorer`
-- [ ] `features/cleanup`
-- [ ] `features/large-files`
-- [ ] `features/duplicates`
-- [ ] `features/developer-cleanup`
-- [ ] `features/ai-storage`
-- [ ] `features/app-leftovers`
-- [ ] `features/system`
-- [ ] `features/settings`
+- [x] `features/overview`
+- [x] `features/explorer`
+- [x] `features/cleanup`
+- [x] `features/large-files`
+- [x] `features/duplicates`
+- [x] `features/developer-cleanup`
+- [x] `features/ai-storage`
+- [x] `features/app-leftovers`
+- [x] `features/system`
+- [x] `features/settings`
 - [ ] `features/search`
 
 ---
@@ -119,24 +119,24 @@ Create only required modules; do not create empty architecture for appearance.
 
 ## Desktop
 
-- [ ] App shell
-- [ ] Sidebar
-- [ ] Scan controls area
+- [x] App shell
+- [x] Sidebar
+- [x] Scan controls area
 - [ ] Storage summary card
-- [ ] Navigation groups
-- [ ] Active states
-- [ ] Disabled states
+- [x] Navigation groups
+- [x] Active states
+- [x] Disabled states
 - [ ] Loading/badge support
-- [ ] Top command bar
-- [ ] Search trigger
-- [ ] Rescan action
-- [ ] Main content container
+- [x] Top command bar
+- [x] Search trigger
+- [x] Rescan action
+- [x] Main content container
 
 ## Responsive
 
 - [ ] Compact desktop sidebar behavior
 - [ ] Tablet drawer/rail behavior
-- [ ] Mobile top app bar
+- [x] Mobile top app bar
 - [ ] Mobile bottom navigation
 - [ ] “More” navigation sheet
 - [ ] No horizontal overflow
@@ -146,17 +146,17 @@ Create only required modules; do not create empty architecture for appearance.
 
 # Phase 5 — Routes & Page Skeletons
 
-- [ ] `/overview`
-- [ ] `/explorer`
-- [ ] `/cleanup`
-- [ ] `/large-files`
-- [ ] `/duplicates`
-- [ ] `/developer-cleanup`
-- [ ] `/ai-storage`
-- [ ] `/app-leftovers`
-- [ ] `/system`
-- [ ] `/settings`
-- [ ] Default route redirects/lands correctly
+- [x] `/overview`
+- [x] `/explorer`
+- [x] `/cleanup`
+- [x] `/large-files`
+- [x] `/duplicates`
+- [x] `/developer-cleanup`
+- [x] `/ai-storage`
+- [x] `/app-leftovers`
+- [x] `/system`
+- [x] `/settings`
+- [x] Default route redirects/lands correctly
 - [ ] 404/fallback behavior
 - [ ] Route title/active-nav behavior
 
@@ -166,14 +166,14 @@ Create only required modules; do not create empty architecture for appearance.
 
 Only create when needed.
 
-- [ ] `PageHeader`
-- [ ] `SectionCard`
+- [x] `PageHeader`
+- [x] `SectionCard`
 - [ ] `Metric`
 - [ ] `StorageProgress`
 - [ ] `SafetyBadge`
 - [ ] `FileTypeIcon`
 - [ ] `PathText`
-- [ ] `EmptyState`
+- [x] `EmptyState`
 - [ ] `LoadingState`
 - [ ] `ErrorState`
 - [ ] `FilterBar`
