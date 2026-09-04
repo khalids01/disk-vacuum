@@ -12,10 +12,12 @@ interface ScanHomeButtonProps
     "className" | "size" | "variant"
   > {
   children?: string;
+  compact?: boolean;
 }
 
 export function ScanHomeButton({
   children = "Scan Home",
+  compact = false,
   ...buttonProps
 }: ScanHomeButtonProps) {
   const queryClient = useQueryClient();
@@ -52,7 +54,15 @@ export function ScanHomeButton({
       ) : (
         <HomeIcon data-icon="inline-start" />
       )}
-      {isScanning ? "Scanning Home" : children}
+      {isScanning ? (
+        compact ? (
+          <span className="sr-only">Scanning Home</span>
+        ) : (
+          "Scanning Home"
+        )
+      ) : (
+        children
+      )}
     </Button>
   );
 }

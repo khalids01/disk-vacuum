@@ -43,7 +43,12 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
           Scan Drive
         </Button>
         <div className="mt-2 grid grid-cols-2 gap-2">
-          <ScanHomeButton className="w-full" variant="outline" size="sm">
+          <ScanHomeButton
+            className="w-full"
+            variant="outline"
+            size="sm"
+            compact
+          >
             Home
           </ScanHomeButton>
           <Button variant="outline" size="sm" disabled>
