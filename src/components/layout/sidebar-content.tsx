@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { HardDriveIcon } from "lucide-react";
 import { navigationGroups } from "@/components/layout/navigation";
-import { Button } from "@/components/ui/button";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { ScanFolderButton } from "@/features/scan/components/scan-folder-button";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
+import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { useScanStore } from "@/stores/scan-store";
 
@@ -40,10 +39,7 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
             {isScanActive ? progressLabel : "No scan selected"}
           </p>
         )}
-        <Button className="mt-3 w-full" size="sm" disabled>
-          <HardDriveIcon data-icon="inline-start" />
-          Scan Drive
-        </Button>
+        <ScanSystemButton className="mt-3 w-full" size="sm" />
         <div className="mt-2 grid grid-cols-2 gap-2">
           <ScanHomeButton className="w-full" variant="outline" size="sm">
             Home

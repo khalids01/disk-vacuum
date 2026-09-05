@@ -4,10 +4,10 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
-import { Button } from "@/components/ui/button";
 import { ScanFolderButton } from "@/features/scan/components/scan-folder-button";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
+import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
 import { useScanStore } from "@/stores/scan-store";
 
 export function NoScanSection() {
@@ -41,10 +41,7 @@ export function NoScanSection() {
             </div>
           )}
           <div className="mt-6 flex flex-wrap gap-2">
-            <Button disabled>
-              <HardDriveIcon data-icon="inline-start" />
-              Scan Drive
-            </Button>
+            <ScanSystemButton />
             <ScanHomeButton variant="outline" />
             <ScanFolderButton variant="outline" />
           </div>

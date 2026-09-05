@@ -14,6 +14,7 @@ pub fn run() {
             features::scan::service::get_current_scan,
             features::scan::service::scan_directory_path,
             features::scan::service::scan_home_directory,
+            features::scan::service::scan_system_storage,
             features::system::get_system_info
         ])
         .run(tauri::generate_context!())

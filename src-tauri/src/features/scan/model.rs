@@ -18,11 +18,19 @@ impl ScanCommandError {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ScanCapacity {
+    pub total_space_bytes: u64,
+    pub used_space_bytes: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
     pub target_label: String,
     pub entries_visited: u64,
     pub bytes_observed: u64,
     pub elapsed_milliseconds: u64,
+    pub capacity: Option<ScanCapacity>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -47,6 +55,7 @@ pub struct ScanSummary {
     pub target_label: String,
     pub completed_at_unix_seconds: u64,
     pub total_size_bytes: u64,
+    pub capacity: Option<ScanCapacity>,
     pub file_count: u64,
     pub directory_count: u64,
     pub permission_denied_count: u64,

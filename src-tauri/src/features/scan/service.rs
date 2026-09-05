@@ -11,13 +11,17 @@ use std::{
 };
 
 use rayon::{iter::ParallelBridge, prelude::ParallelIterator, ThreadPoolBuilder};
+use sysinfo::Disks;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::{
     app_state::{ActiveScan, AppState},
     features::scan::{
         filesystem_identity::{filesystem_id, hard_link_identity, FileIdentity},
-        model::{ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary},
+        model::{
+            ScanCapacity, ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress,
+            ScanSummary,
+        },
     },
 };
 
@@ -49,6 +53,7 @@ struct ScanAccumulator {
     cancellation: Arc<AtomicBool>,
     target_label: String,
     root_filesystem_id: Option<u64>,
+    capacity: Option<ScanCapacity>,
     seen_hard_links: Mutex<HashSet<FileIdentity>>,
     started_at: Instant,
     last_progress_emit: Mutex<Instant>,
@@ -71,6 +76,7 @@ impl ScanAccumulator {
         cancellation: Arc<AtomicBool>,
         target_label: &str,
         root_filesystem_id: Option<u64>,
+        capacity: Option<ScanCapacity>,
     ) -> Self {
         let started_at = Instant::now();
 
@@ -79,6 +85,7 @@ impl ScanAccumulator {
             cancellation,
             target_label: target_label.to_owned(),
             root_filesystem_id,
+            capacity,
             seen_hard_links: Mutex::new(HashSet::new()),
             started_at,
             last_progress_emit: Mutex::new(started_at),
@@ -133,6 +140,7 @@ impl ScanAccumulator {
                     entries_visited: self.entries_visited.load(Ordering::Relaxed),
                     bytes_observed: self.total_size_bytes.load(Ordering::Relaxed),
                     elapsed_milliseconds: self.started_at.elapsed().as_millis() as u64,
+                    capacity: self.capacity.clone(),
                 },
             );
         }
@@ -204,6 +212,25 @@ pub async fn scan_home_directory(
     finish_active_scan(&state, active_scan.id)?;
     let summary = task_result
         .map_err(|_| ScanCommandError::new("scan_failed", "The home scan could not finish."))?
+        .map_err(ScanCommandError::from)?;
+    store_completed_scan(&state, summary)
+}
+
+#[tauri::command]
+pub async fn scan_system_storage(
+    app_handle: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<ScanSummary, ScanCommandError> {
+    let active_scan = begin_scan(&state)?;
+    let cancellation = active_scan.cancellation.clone();
+    let task_result = tauri::async_runtime::spawn_blocking(move || {
+        scan_system_storage_blocking(app_handle, cancellation)
+    })
+    .await;
+
+    finish_active_scan(&state, active_scan.id)?;
+    let summary = task_result
+        .map_err(|_| ScanCommandError::new("scan_failed", "The system scan could not finish."))?
         .map_err(ScanCommandError::from)?;
     store_completed_scan(&state, summary)
 }
@@ -306,6 +333,20 @@ fn store_completed_scan(
     Ok(summary)
 }
 
+fn scan_system_storage_blocking(
+    app_handle: AppHandle,
+    cancellation: Arc<AtomicBool>,
+) -> ScanResult<ScanSummary> {
+    let (system_root, capacity) = resolve_system_storage()?;
+    scan_directory(
+        &system_root,
+        "System storage",
+        Some(app_handle),
+        Some(capacity),
+        cancellation,
+    )
+}
+
 fn scan_home_directory_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
@@ -315,6 +356,7 @@ fn scan_home_directory_blocking(
         &home_directory,
         "Home directory",
         Some(app_handle),
+        None,
         cancellation,
     )
 }
@@ -335,8 +377,47 @@ fn scan_selected_directory_blocking(
         &selected_directory,
         &target_label,
         Some(app_handle),
+        None,
         cancellation,
     )
+}
+
+#[cfg(unix)]
+fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
+    let disks = Disks::new_with_refreshed_list();
+    let preferred_mount = if cfg!(target_os = "macos") {
+        Path::new("/System/Volumes/Data")
+    } else {
+        Path::new("/")
+    };
+    let fallback_mount = Path::new("/");
+    let disk = disks
+        .list()
+        .iter()
+        .find(|disk| disk.mount_point() == preferred_mount)
+        .or_else(|| {
+            disks
+                .list()
+                .iter()
+                .find(|disk| disk.mount_point() == fallback_mount)
+        })
+        .ok_or(ScanFailure::Message(
+            "The primary system storage volume could not be located.",
+        ))?;
+
+    let root = validate_scan_root(disk.mount_point())?;
+    let capacity = ScanCapacity {
+        total_space_bytes: disk.total_space(),
+        used_space_bytes: disk.total_space().saturating_sub(disk.available_space()),
+    };
+    Ok((root, capacity))
+}
+
+#[cfg(not(unix))]
+fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
+    Err(ScanFailure::Message(
+        "Whole-system scanning is currently available on macOS and Linux.",
+    ))
 }
 
 fn resolve_home_directory() -> ScanResult<PathBuf> {
@@ -383,6 +464,7 @@ fn scan_directory(
     root: &Path,
     target_label: &str,
     app_handle: Option<AppHandle>,
+    capacity: Option<ScanCapacity>,
     cancellation: Arc<AtomicBool>,
 ) -> ScanResult<ScanSummary> {
     let root_metadata = fs::metadata(root)
@@ -393,6 +475,7 @@ fn scan_directory(
         cancellation,
         target_label,
         root_filesystem_id,
+        capacity,
     ));
     accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
@@ -438,6 +521,7 @@ fn scan_directory(
             .map(|duration| duration.as_secs())
             .unwrap_or_default(),
         total_size_bytes: accumulator.total_size_bytes.load(Ordering::Relaxed),
+        capacity: accumulator.capacity.clone(),
         file_count: accumulator.file_count.load(Ordering::Relaxed),
         directory_count: accumulator.directory_count.load(Ordering::Relaxed),
         permission_denied_count: accumulator.permission_denied_count.load(Ordering::Relaxed),
@@ -577,7 +661,7 @@ mod tests {
         time::SystemTime,
     };
 
-    use super::{scan_directory, ScanFailure};
+    use super::{scan_directory, ScanCapacity, ScanFailure};
 
     fn unique_fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -597,10 +681,24 @@ mod tests {
         fs::write(fixture.join("nested").join("large.txt"), b"abcdefgh")
             .expect("fixture file should be written");
 
-        let summary = scan_directory(&fixture, "Fixture", None, Arc::new(AtomicBool::new(false)))
-            .expect("fixture scan should succeed");
+        let summary = scan_directory(
+            &fixture,
+            "Fixture",
+            None,
+            Some(ScanCapacity {
+                total_space_bytes: 100,
+                used_space_bytes: 75,
+            }),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("fixture scan should succeed");
 
         assert_eq!(summary.total_size_bytes, 11);
+        let capacity = summary
+            .capacity
+            .expect("fixture capacity should be preserved");
+        assert_eq!(capacity.total_space_bytes, 100);
+        assert_eq!(capacity.used_space_bytes, 75);
         assert_eq!(summary.file_count, 2);
         assert_eq!(summary.directory_count, 2);
         assert!(summary.top_level_items.len() <= 24);
@@ -622,8 +720,14 @@ mod tests {
         fs::hard_link(&original, fixture.join("linked.bin"))
             .expect("fixture hard link should be created");
 
-        let summary = scan_directory(&fixture, "Fixture", None, Arc::new(AtomicBool::new(false)))
-            .expect("fixture scan should succeed");
+        let summary = scan_directory(
+            &fixture,
+            "Fixture",
+            None,
+            None,
+            Arc::new(AtomicBool::new(false)),
+        )
+        .expect("fixture scan should succeed");
 
         assert_eq!(summary.file_count, 2);
         assert_eq!(summary.total_size_bytes, 8);
@@ -638,7 +742,7 @@ mod tests {
         let cancellation = Arc::new(AtomicBool::new(false));
         cancellation.store(true, Ordering::Relaxed);
 
-        let result = scan_directory(&fixture, "Fixture", None, cancellation);
+        let result = scan_directory(&fixture, "Fixture", None, None, cancellation);
 
         assert!(matches!(result, Err(ScanFailure::Cancelled)));
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");

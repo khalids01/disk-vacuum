@@ -442,7 +442,7 @@ Only create when needed.
 - [x] Define managed scan state
 - [x] Scan path validation
 - [x] Home target
-- [ ] Drive/root target
+- [x] Drive/root target
 - [x] Custom folder target
 - [x] Parallel filesystem walk
 - [x] Permission errors handled

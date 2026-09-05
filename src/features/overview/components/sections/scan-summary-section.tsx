@@ -3,6 +3,7 @@ import { SectionCard } from "@/components/core/section-card";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
+import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
 interface ScanSummarySectionProps {
@@ -17,6 +18,14 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     summary.skippedHardLinkCount +
     summary.skippedMountedFilesystemCount +
     summary.skippedSpecialFileCount;
+  const usedPercent =
+    summary.capacity && summary.capacity.totalSpaceBytes > 0
+      ? Math.min(
+          100,
+          (summary.capacity.usedSpaceBytes / summary.capacity.totalSpaceBytes) *
+            100,
+        )
+      : null;
 
   return (
     <div className="space-y-5">
@@ -37,6 +46,36 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
         />
       </div>
 
+      {summary.capacity && usedPercent !== null && (
+        <SectionCard className="p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">System storage capacity</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {formatBytes(summary.capacity.usedSpaceBytes)} used of{" "}
+                {formatBytes(summary.capacity.totalSpaceBytes)}
+              </p>
+            </div>
+            <p className="font-mono text-sm font-medium">
+              {Math.round(usedPercent)}% used
+            </p>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${usedPercent}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {formatBytes(
+              summary.capacity.totalSpaceBytes -
+                summary.capacity.usedSpaceBytes,
+            )}{" "}
+            available
+          </p>
+        </SectionCard>
+      )}
+
       <SectionCard className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
           <div>
@@ -48,9 +87,15 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
               The largest direct items from this completed scan.
             </p>
           </div>
-          <ScanHomeButton variant="outline" size="sm">
-            Rescan Home
-          </ScanHomeButton>
+          {summary.capacity ? (
+            <ScanSystemButton variant="outline" size="sm">
+              Rescan System
+            </ScanSystemButton>
+          ) : (
+            <ScanHomeButton variant="outline" size="sm">
+              Scan Home
+            </ScanHomeButton>
+          )}
         </div>
         {summary.topLevelItems.length === 0 ? (
           <p className="p-5 text-sm text-muted-foreground">

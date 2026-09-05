@@ -12,11 +12,17 @@ export interface ScanCommandError {
   message: string;
 }
 
+export interface ScanCapacity {
+  totalSpaceBytes: number;
+  usedSpaceBytes: number;
+}
+
 export interface ScanProgress {
   targetLabel: string;
   entriesVisited: number;
   bytesObserved: number;
   elapsedMilliseconds: number;
+  capacity: ScanCapacity | null;
 }
 
 export interface ScanNodeSummary {
@@ -30,6 +36,7 @@ export interface ScanSummary {
   targetLabel: string;
   completedAtUnixSeconds: number;
   totalSizeBytes: number;
+  capacity: ScanCapacity | null;
   fileCount: number;
   directoryCount: number;
   permissionDeniedCount: number;
@@ -43,6 +50,10 @@ export interface ScanSummary {
 
 export function getCurrentScan() {
   return invoke<ScanSummary | null>("get_current_scan");
+}
+
+export function scanSystemStorage() {
+  return invoke<ScanSummary>("scan_system_storage");
 }
 
 export function scanHomeDirectory() {

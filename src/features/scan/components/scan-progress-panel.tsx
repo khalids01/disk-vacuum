@@ -61,6 +61,16 @@ export function ScanProgressPanel() {
   }
 
   const isCancelling = status === "cancelling";
+  const observedBytes = progress?.bytesObserved ?? 0;
+  const usedSpaceBytes = progress?.capacity?.usedSpaceBytes ?? 0;
+  const estimatedPercent =
+    usedSpaceBytes > 0
+      ? Math.min(100, (observedBytes / usedSpaceBytes) * 100)
+      : null;
+  const percentLabel =
+    estimatedPercent === null
+      ? null
+      : `${estimatedPercent < 1 ? estimatedPercent.toFixed(1) : Math.round(estimatedPercent)}%`;
 
   return (
     <SectionCard
@@ -83,13 +93,35 @@ export function ScanProgressPanel() {
               {formatElapsed(progress?.elapsedMilliseconds ?? 0)} elapsed
             </p>
           </div>
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full w-2/5 animate-pulse rounded-full bg-primary" />
+          <div
+            className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={
+              estimatedPercent === null
+                ? undefined
+                : Math.round(estimatedPercent)
+            }
+          >
+            <div
+              className={
+                estimatedPercent === null
+                  ? "h-full w-2/5 animate-pulse rounded-full bg-primary"
+                  : "h-full rounded-full bg-primary transition-[width] duration-300"
+              }
+              style={
+                estimatedPercent === null
+                  ? undefined
+                  : { width: `${estimatedPercent}%` }
+              }
+            />
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
+              {percentLabel ? `${percentLabel} · ` : ""}
               {(progress?.entriesVisited ?? 0).toLocaleString()} items inspected
-              · {formatBytes(progress?.bytesObserved ?? 0)} observed
+              · {formatBytes(observedBytes)} observed
             </p>
             <Button
               variant="outline"
@@ -102,8 +134,19 @@ export function ScanProgressPanel() {
             </Button>
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Total item count is discovered during the scan, so this is a live
-            activity indicator rather than an inaccurate percentage.
+            {progress?.capacity ? (
+              <>
+                Estimated from {formatBytes(progress.capacity.usedSpaceBytes)}{" "}
+                used across {formatBytes(progress.capacity.totalSpaceBytes)}{" "}
+                total capacity. Protected and filesystem-managed space can
+                differ.
+              </>
+            ) : (
+              <>
+                Total item count is discovered during the scan, so folder scans
+                use a live activity indicator.
+              </>
+            )}
           </p>
         </div>
       </div>
