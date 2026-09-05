@@ -1,6 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type ScanNodeKind = "file" | "directory";
+export type ScanCategory =
+  | "applications"
+  | "documents"
+  | "downloads"
+  | "images"
+  | "video"
+  | "audio"
+  | "archives"
+  | "developer"
+  | "ai"
+  | "caches"
+  | "system"
+  | "other";
 export type ScanErrorCode =
   | "scan_cancelled"
   | "scan_failed"
@@ -37,11 +50,18 @@ export interface ScanDirectoryPage {
   items: ScanNodeSummary[];
 }
 
+export interface ScanCategorySummary {
+  category: ScanCategory;
+  sizeBytes: number;
+  fileCount: number;
+}
+
 export interface ScanNodeSummary {
   id: number;
   name: string;
   kind: ScanNodeKind;
   sizeBytes: number;
+  category: ScanCategory;
 }
 
 export interface ScanSummary {
@@ -59,6 +79,7 @@ export interface ScanSummary {
   skippedSpecialFileCount: number;
   rootDirectoryId: number;
   topLevelItems: ScanNodeSummary[];
+  categories: ScanCategorySummary[];
 }
 
 export function getScanDirectory(directoryId: number, offset = 0, limit = 200) {

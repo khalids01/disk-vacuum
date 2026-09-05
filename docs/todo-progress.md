@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Implement scan category classification**
+- Current task: **Implement bounded treemap summary**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -451,7 +451,7 @@ Only create when needed.
 - [x] Mounted filesystem behavior defined
 - [x] Size aggregation
 - [x] File/folder counts
-- [ ] Category classification
+- [x] Category classification
 - [ ] Bounded treemap summary
 - [x] Full index kept in Rust
 - [x] Progress events throttled

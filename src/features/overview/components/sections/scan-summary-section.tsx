@@ -1,5 +1,6 @@
 import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
+import { ScanCategorySection } from "@/features/overview/components/sections/scan-category-section";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
@@ -82,7 +83,7 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
           {summary.capacity.reservedSpaceBytes > 0 && (
             <p className="mt-1 text-xs text-muted-foreground">
               {formatBytes(summary.capacity.availableSpaceBytes)} available to
-              this user · {formatBytes(summary.capacity.reservedSpaceBytes)}
+              this user · {formatBytes(summary.capacity.reservedSpaceBytes)}{" "}
               reserved for the system
             </p>
           )}
@@ -107,6 +108,8 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
           )}
         </SectionCard>
       )}
+
+      <ScanCategorySection summary={summary} />
 
       <SectionCard className="overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">

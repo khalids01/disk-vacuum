@@ -14,6 +14,7 @@ import { ExplorerEmptySection } from "@/features/explorer/components/sections/ex
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
 const PAGE_SIZE = 100;
 
@@ -152,8 +153,13 @@ function ScanExplorer({ summary }: { summary: ScanSummary }) {
                       <FileIcon className="size-4 text-muted-foreground" />
                     )}
                   </span>
-                  <span className="truncate text-sm font-medium">
-                    {item.name}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">
+                      {item.name}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {formatScanCategory(item.category)}
+                    </span>
                   </span>
                 </span>
                 <span className="shrink-0 font-mono text-xs text-muted-foreground sm:text-sm">

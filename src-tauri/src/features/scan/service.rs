@@ -18,10 +18,12 @@ use crate::{
     app_state::{ActiveScan, AppState},
     features::scan::{
         capacity::scan_capacity,
+        classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            CompletedScan, ScanCapacity, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
-            ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary,
+            CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
+            ScanDirectoryPage, ScanDirectoryRecord, ScanNodeKind, ScanNodeSummary, ScanProgress,
+            ScanSummary,
         },
     },
 };
@@ -68,6 +70,8 @@ struct ScanAccumulator {
     skipped_hard_link_count: AtomicU64,
     skipped_mounted_filesystem_count: AtomicU64,
     skipped_special_file_count: AtomicU64,
+    category_size_bytes: [AtomicU64; CATEGORY_COUNT],
+    category_file_counts: [AtomicU64; CATEGORY_COUNT],
     top_level_items: Mutex<Vec<ScanNodeSummary>>,
     next_node_id: AtomicU64,
     directories: Mutex<HashMap<u64, ScanDirectoryRecord>>,
@@ -102,6 +106,8 @@ impl ScanAccumulator {
             skipped_hard_link_count: AtomicU64::new(0),
             skipped_mounted_filesystem_count: AtomicU64::new(0),
             skipped_special_file_count: AtomicU64::new(0),
+            category_size_bytes: std::array::from_fn(|_| AtomicU64::new(0)),
+            category_file_counts: std::array::from_fn(|_| AtomicU64::new(0)),
             top_level_items: Mutex::new(Vec::with_capacity(MAX_TOP_LEVEL_ITEMS)),
             next_node_id: AtomicU64::new(1),
             directories: Mutex::new(HashMap::new()),
@@ -158,6 +164,25 @@ impl ScanAccumulator {
             &self.unreadable_entry_count
         };
         counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn record_file_category(&self, category: ScanCategory, size_bytes: u64) {
+        self.category_size_bytes[category.index()].fetch_add(size_bytes, Ordering::Relaxed);
+        self.category_file_counts[category.index()].fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn category_summaries(&self) -> Vec<ScanCategorySummary> {
+        let mut categories = ScanCategory::ALL
+            .into_iter()
+            .map(|category| ScanCategorySummary {
+                category,
+                size_bytes: self.category_size_bytes[category.index()].load(Ordering::Relaxed),
+                file_count: self.category_file_counts[category.index()].load(Ordering::Relaxed),
+            })
+            .filter(|summary| summary.file_count > 0)
+            .collect::<Vec<_>>();
+        categories.sort_by_key(|summary| Reverse(summary.size_bytes));
+        categories
     }
 
     fn record_top_level_item(&self, item: ScanNodeSummary) {
@@ -220,6 +245,7 @@ struct MeasuredEntry {
     id: u64,
     kind: ScanNodeKind,
     size_bytes: u64,
+    category: ScanCategory,
 }
 
 #[tauri::command]
@@ -588,6 +614,7 @@ fn scan_directory(
                         name: entry.file_name().to_string_lossy().into_owned(),
                         kind: measured_entry.kind,
                         size_bytes: measured_entry.size_bytes,
+                        category: measured_entry.category,
                     })
             })
             .collect::<Vec<_>>()
@@ -627,6 +654,7 @@ fn scan_directory(
             .load(Ordering::Relaxed),
         root_directory_id: ROOT_DIRECTORY_ID,
         top_level_items: accumulator.take_top_level_items(),
+        categories: accumulator.category_summaries(),
     };
 
     Ok(CompletedScan {
@@ -676,6 +704,7 @@ fn scan_entry(
     if metadata.is_file() {
         let node_id = accumulator.next_node_id();
         accumulator.file_count.fetch_add(1, Ordering::Relaxed);
+        let category = classify_path(path, false);
         if hard_link_identity(&metadata).is_some_and(|identity| {
             !accumulator
                 .seen_hard_links
@@ -683,6 +712,7 @@ fn scan_entry(
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .insert(identity)
         }) {
+            accumulator.record_file_category(category, 0);
             accumulator
                 .skipped_hard_link_count
                 .fetch_add(1, Ordering::Relaxed);
@@ -690,10 +720,12 @@ fn scan_entry(
                 id: node_id,
                 kind: ScanNodeKind::File,
                 size_bytes: 0,
+                category,
             }));
         }
 
         let size_bytes = allocated_size(&metadata);
+        accumulator.record_file_category(category, size_bytes);
         accumulator
             .total_size_bytes
             .fetch_add(size_bytes, Ordering::Relaxed);
@@ -701,13 +733,21 @@ fn scan_entry(
             id: node_id,
             kind: ScanNodeKind::File,
             size_bytes,
+            category,
         }));
     }
 
     if metadata.is_dir() {
         let node_id = accumulator.next_node_id();
         accumulator.directory_count.fetch_add(1, Ordering::Relaxed);
-        let (size_bytes, children) = scan_directory_contents(path, node_id, accumulator)?;
+        let (size_bytes, children, child_category) =
+            scan_directory_contents(path, node_id, accumulator)?;
+        let path_category = classify_path(path, true);
+        let category = if path_category == ScanCategory::Other {
+            child_category
+        } else {
+            path_category
+        };
         accumulator.record_directory(ScanDirectoryRecord {
             id: node_id,
             parent_id: Some(parent_id),
@@ -721,6 +761,7 @@ fn scan_entry(
             id: node_id,
             kind: ScanNodeKind::Directory,
             size_bytes,
+            category,
         }));
     }
 
@@ -734,13 +775,13 @@ fn scan_directory_contents(
     path: &Path,
     directory_id: u64,
     accumulator: &Arc<ScanAccumulator>,
-) -> ScanResult<(u64, Vec<ScanNodeSummary>)> {
+) -> ScanResult<(u64, Vec<ScanNodeSummary>, ScanCategory)> {
     accumulator.check_cancelled()?;
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
             accumulator.record_read_error(&error);
-            return Ok((0, Vec::new()));
+            return Ok((0, Vec::new(), ScanCategory::Other));
         }
     };
 
@@ -763,14 +804,25 @@ fn scan_directory_contents(
                     name: entry.file_name().to_string_lossy().into_owned(),
                     kind: measured_entry.kind,
                     size_bytes: measured_entry.size_bytes,
+                    category: measured_entry.category,
                 })
         })
         .collect::<Vec<_>>();
     let size_bytes = children
         .iter()
         .fold(0_u64, |total, child| total.saturating_add(child.size_bytes));
+    let mut category_bytes = [0_u64; CATEGORY_COUNT];
+    for child in &children {
+        category_bytes[child.category.index()] =
+            category_bytes[child.category.index()].saturating_add(child.size_bytes);
+    }
+    let category = ScanCategory::ALL
+        .into_iter()
+        .max_by_key(|category| category_bytes[category.index()])
+        .filter(|category| category_bytes[category.index()] > 0)
+        .unwrap_or(ScanCategory::Other);
 
-    Ok((size_bytes, children))
+    Ok((size_bytes, children, category))
 }
 
 #[cfg(test)]
@@ -841,6 +893,22 @@ mod tests {
         assert_eq!(capacity.available_space_bytes, 20);
         assert_eq!(capacity.reserved_space_bytes, 5);
         assert_eq!(summary.file_count, 2);
+        assert_eq!(
+            summary
+                .categories
+                .iter()
+                .map(|item| item.file_count)
+                .sum::<u64>(),
+            2
+        );
+        assert_eq!(
+            summary
+                .categories
+                .iter()
+                .map(|item| item.size_bytes)
+                .sum::<u64>(),
+            expected_size
+        );
         assert_eq!(summary.directory_count, 2);
         assert!(summary.top_level_items.len() <= 24);
         assert!(summary

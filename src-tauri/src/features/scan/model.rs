@@ -45,6 +45,53 @@ pub struct ScanNodeSummary {
     pub name: String,
     pub kind: ScanNodeKind,
     pub size_bytes: u64,
+    pub category: ScanCategory,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScanCategory {
+    Applications,
+    Documents,
+    Downloads,
+    Images,
+    Video,
+    Audio,
+    Archives,
+    Developer,
+    Ai,
+    Caches,
+    System,
+    Other,
+}
+
+impl ScanCategory {
+    pub const ALL: [Self; 12] = [
+        Self::Applications,
+        Self::Documents,
+        Self::Downloads,
+        Self::Images,
+        Self::Video,
+        Self::Audio,
+        Self::Archives,
+        Self::Developer,
+        Self::Ai,
+        Self::Caches,
+        Self::System,
+        Self::Other,
+    ];
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanCategorySummary {
+    pub category: ScanCategory,
+    pub size_bytes: u64,
+    pub file_count: u64,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -71,6 +118,7 @@ pub struct ScanSummary {
     pub skipped_special_file_count: u64,
     pub root_directory_id: u64,
     pub top_level_items: Vec<ScanNodeSummary>,
+    pub categories: Vec<ScanCategorySummary>,
 }
 
 pub struct ScanDirectoryRecord {
