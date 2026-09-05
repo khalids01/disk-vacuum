@@ -208,13 +208,13 @@ Only create when needed.
 ## Treemap
 
 - [ ] Mock treemap
-- [ ] Category color mapping
-- [ ] Labels
-- [ ] Hover
+- [x] Category color mapping
+- [x] Labels
+- [x] Hover
 - [ ] Selection
-- [ ] Drill-down
-- [ ] Breadcrumb
-- [ ] Back navigation
+- [x] Drill-down
+- [x] Breadcrumb
+- [x] Back navigation
 - [ ] Context menu
 - [ ] Item detail
 - [ ] Mobile bottom-sheet detail

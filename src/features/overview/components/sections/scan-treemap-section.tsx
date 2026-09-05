@@ -4,10 +4,11 @@ import {
   ChevronRightIcon,
   FolderOpenIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { scanTreemapQuery } from "@/features/overview/api/treemap-queries";
+import { createTreemapLayout } from "@/features/overview/lib/treemap-layout";
 import type {
   ScanCategory,
   ScanSummary,
@@ -17,18 +18,18 @@ import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
 const categoryStyles: Record<ScanCategory, string> = {
-  applications: "border-sky-500/35 bg-sky-500/15 hover:bg-sky-500/25",
-  documents: "border-blue-500/35 bg-blue-500/15 hover:bg-blue-500/25",
-  downloads: "border-cyan-500/35 bg-cyan-500/15 hover:bg-cyan-500/25",
-  images: "border-violet-500/35 bg-violet-500/15 hover:bg-violet-500/25",
-  video: "border-fuchsia-500/35 bg-fuchsia-500/15 hover:bg-fuchsia-500/25",
-  audio: "border-pink-500/35 bg-pink-500/15 hover:bg-pink-500/25",
-  archives: "border-amber-500/35 bg-amber-500/15 hover:bg-amber-500/25",
-  developer: "border-emerald-500/35 bg-emerald-500/15 hover:bg-emerald-500/25",
-  ai: "border-teal-500/35 bg-teal-500/15 hover:bg-teal-500/25",
-  caches: "border-orange-500/35 bg-orange-500/15 hover:bg-orange-500/25",
-  system: "border-slate-500/35 bg-slate-500/15 hover:bg-slate-500/25",
-  other: "border-zinc-500/35 bg-zinc-500/15 hover:bg-zinc-500/25",
+  applications: "border-sky-500/45 bg-sky-500/20 hover:bg-sky-500/30",
+  documents: "border-blue-500/45 bg-blue-500/20 hover:bg-blue-500/30",
+  downloads: "border-cyan-500/45 bg-cyan-500/20 hover:bg-cyan-500/30",
+  images: "border-violet-500/45 bg-violet-500/20 hover:bg-violet-500/30",
+  video: "border-fuchsia-500/45 bg-fuchsia-500/20 hover:bg-fuchsia-500/30",
+  audio: "border-pink-500/45 bg-pink-500/20 hover:bg-pink-500/30",
+  archives: "border-amber-500/45 bg-amber-500/20 hover:bg-amber-500/30",
+  developer: "border-emerald-500/45 bg-emerald-500/20 hover:bg-emerald-500/30",
+  ai: "border-teal-500/45 bg-teal-500/20 hover:bg-teal-500/30",
+  caches: "border-orange-500/45 bg-orange-500/20 hover:bg-orange-500/30",
+  system: "border-slate-500/45 bg-slate-500/20 hover:bg-slate-500/30",
+  other: "border-zinc-500/45 bg-zinc-500/20 hover:bg-zinc-500/30",
 };
 
 interface BreadcrumbItem {
@@ -47,6 +48,12 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
   const treemap = useQuery(
     scanTreemapQuery(summary.completedAtUnixSeconds, activeDirectory.id),
   );
+  const rectangles = useMemo(
+    () => createTreemapLayout(treemap.data?.nodes ?? []),
+    [treemap.data?.nodes],
+  );
+  const directories =
+    treemap.data?.nodes.filter((node) => node.kind === "directory") ?? [];
 
   function openNode(node: ScanTreemapNode) {
     if (node.kind !== "directory" || node.id === null) return;
@@ -58,8 +65,8 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
   }
 
   return (
-    <SectionCard className="overflow-hidden">
-      <div className="border-b border-border px-4 py-4 sm:px-5">
+    <SectionCard className="overflow-visible">
+      <div className="sticky top-0 z-20 rounded-t-lg border-b border-border bg-card/95 px-4 py-4 backdrop-blur sm:px-5">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -94,7 +101,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           {treemap.data
-            ? `${treemap.data.totalItems.toLocaleString()} direct items · showing ${treemap.data.nodes.length} bounded regions`
+            ? `${treemap.data.totalItems.toLocaleString()} direct items · ${treemap.data.nodes.length} bounded regions`
             : "Loading space map…"}
         </p>
       </div>
@@ -107,52 +114,91 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
             ? treemap.error.message
             : "The space map could not be loaded."}
         </p>
-      ) : treemap.data.nodes.length === 0 ? (
+      ) : rectangles.length === 0 ? (
         <p className="p-5 text-sm text-muted-foreground">
-          This folder has no indexed content to map.
+          This folder has no sized indexed content to map.
         </p>
       ) : (
-        <div className="grid auto-rows-[7.5rem] grid-cols-2 gap-1 p-2 sm:grid-cols-4 lg:grid-cols-6">
-          {treemap.data.nodes.map((node, index) => {
-            const largestSize = treemap.data.nodes[0]?.sizeBytes ?? 1;
-            const relativeSize =
-              largestSize > 0 ? node.sizeBytes / largestSize : 0;
-            const spanClass =
-              relativeSize > 0.66
-                ? "col-span-2 sm:col-span-3"
-                : relativeSize > 0.25
-                  ? "col-span-1 sm:col-span-2"
-                  : "col-span-1";
-            const canOpen = node.kind === "directory";
-
-            return (
-              <button
-                key={node.id ?? `group-${index}`}
-                type="button"
-                disabled={!canOpen}
-                className={`group min-w-0 overflow-hidden rounded-md border p-3 text-left transition-colors disabled:cursor-default ${spanClass} ${categoryStyles[node.category]}`}
-                onClick={() => openNode(node)}
-              >
-                <span className="flex items-start justify-between gap-2">
-                  <span className="truncate text-sm font-semibold">
-                    {node.name}
+        <>
+          <section
+            className="relative h-[22rem] overflow-hidden bg-muted/30 p-0.5 sm:h-[30rem]"
+            aria-label={`Storage map for ${activeDirectory.name}`}
+          >
+            {rectangles.map((rectangle, index) => {
+              const { node } = rectangle;
+              const canOpen = node.kind === "directory";
+              const showDetails =
+                rectangle.width >= 12 && rectangle.height >= 10;
+              return (
+                <button
+                  key={node.id ?? `group-${index}`}
+                  type="button"
+                  disabled={!canOpen}
+                  title={`${node.name} · ${formatBytes(node.sizeBytes)} · ${formatScanCategory(node.category)}`}
+                  className={`group absolute overflow-hidden rounded border p-2 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default ${categoryStyles[node.category]}`}
+                  style={{
+                    left: `${rectangle.x}%`,
+                    top: `${rectangle.y}%`,
+                    width: `calc(${rectangle.width}% - 2px)`,
+                    height: `calc(${rectangle.height}% - 2px)`,
+                  }}
+                  onClick={() => openNode(node)}
+                >
+                  <span className="flex min-w-0 items-start justify-between gap-1">
+                    <span className="truncate text-xs font-semibold sm:text-sm">
+                      {node.name}
+                    </span>
+                    {canOpen && showDetails && (
+                      <FolderOpenIcon className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
+                    )}
                   </span>
-                  {canOpen && (
-                    <FolderOpenIcon className="size-4 shrink-0 opacity-60 group-hover:opacity-100" />
+                  {showDetails && (
+                    <>
+                      <span className="mt-1 block font-mono text-[11px]">
+                        {formatBytes(node.sizeBytes)}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                        {node.kind === "group"
+                          ? `${node.groupedItemCount.toLocaleString()} smaller items`
+                          : formatScanCategory(node.category)}
+                      </span>
+                    </>
                   )}
-                </span>
-                <span className="mt-2 block font-mono text-xs">
-                  {formatBytes(node.sizeBytes)}
-                </span>
-                <span className="mt-1 block truncate text-xs text-muted-foreground">
-                  {node.kind === "group"
-                    ? `${node.groupedItemCount.toLocaleString()} smaller items`
-                    : formatScanCategory(node.category)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </section>
+
+          {directories.length > 0 && (
+            <div className="border-t border-border">
+              <div className="px-4 py-3 sm:px-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Directories in this map
+                </h3>
+              </div>
+              <div className="divide-y divide-border">
+                {directories.map((directory) => (
+                  <button
+                    key={directory.id}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
+                    onClick={() => openNode(directory)}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <FolderOpenIcon className="size-4 shrink-0 text-primary" />
+                      <span className="truncate text-sm font-medium">
+                        {directory.name}
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground sm:text-sm">
+                      {formatBytes(directory.sizeBytes)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </SectionCard>
   );
