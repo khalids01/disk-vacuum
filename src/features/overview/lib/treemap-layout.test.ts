@@ -30,6 +30,27 @@ describe("createTreemapLayout", () => {
     }
   });
 
+  test("lays out the maximum bounded response", () => {
+    const nodes = Array.from({ length: 48 }, (_, index) =>
+      node(index, 48 - index),
+    );
+    const layout = createTreemapLayout(nodes);
+
+    expect(layout).toHaveLength(48);
+    expect(
+      layout.reduce((total, item) => total + item.width * item.height, 0),
+    ).toBeCloseTo(10_000);
+    expect(
+      layout.every(
+        (item) =>
+          item.x >= 0 &&
+          item.y >= 0 &&
+          item.x + item.width <= 100.000_001 &&
+          item.y + item.height <= 100.000_001,
+      ),
+    ).toBe(true);
+  });
+
   test("omits zero-size entries from the visual geometry", () => {
     expect(createTreemapLayout([node(1, 0)])).toEqual([]);
   });

@@ -145,6 +145,40 @@ mod tests {
     }
 
     #[test]
+    fn bounds_a_quarter_million_direct_items_without_losing_size() {
+        const ITEM_COUNT: u64 = 250_000;
+        let children = (0..ITEM_COUNT)
+            .map(|index| ScanNodeSummary {
+                id: index,
+                name: format!("item-{index}"),
+                kind: ScanNodeKind::File,
+                size_bytes: ITEM_COUNT - index,
+                category: ScanCategory::Other,
+                modified_at_unix_seconds: None,
+            })
+            .collect();
+        let summary = build_treemap_summary(&completed_scan(children), 0, 48)
+            .expect("large treemap summary should build");
+
+        assert_eq!(summary.total_items, ITEM_COUNT as usize);
+        assert_eq!(summary.nodes.len(), 48);
+        assert_eq!(
+            summary
+                .nodes
+                .iter()
+                .map(|node| node.size_bytes)
+                .sum::<u64>(),
+            ITEM_COUNT * (ITEM_COUNT + 1) / 2
+        );
+        let grouped = summary
+            .nodes
+            .iter()
+            .find(|node| matches!(node.kind, ScanTreemapNodeKind::Group))
+            .expect("large remainder should be grouped");
+        assert_eq!(grouped.grouped_item_count, ITEM_COUNT as usize - 47);
+    }
+
+    #[test]
     fn rejects_unknown_directories() {
         let error = build_treemap_summary(&completed_scan(Vec::new()), 99, 48)
             .expect_err("unknown directory should fail");

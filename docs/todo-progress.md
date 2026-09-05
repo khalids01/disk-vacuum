@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 4 — Space Map**
-- Current task: **Test the Space Map with a large completed scan**
+- Current task: **Review the Space Map with a fresh Linux system scan**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -486,7 +486,7 @@ Only create when needed.
 - [x] Selected node details
 - [x] Wire real treemap
 - [x] Ensure no full index crosses IPC
-- [ ] Large scan tested
+- [-] Large scan tested
 
 ---
 
