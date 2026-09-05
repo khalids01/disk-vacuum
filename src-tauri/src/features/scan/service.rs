@@ -1,5 +1,6 @@
 use std::{
     cmp::Reverse,
+    collections::HashSet,
     env, fs,
     path::{Path, PathBuf},
     sync::{
@@ -13,8 +14,9 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::{
     app_state::{ActiveScan, AppState},
-    features::scan::model::{
-        ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary,
+    features::scan::{
+        filesystem_identity::{filesystem_id, hard_link_identity, FileIdentity},
+        model::{ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary},
     },
 };
 
@@ -43,6 +45,8 @@ struct ScanAccumulator {
     app_handle: Option<AppHandle>,
     cancellation: Arc<AtomicBool>,
     target_label: String,
+    root_filesystem_id: Option<u64>,
+    seen_hard_links: HashSet<FileIdentity>,
     started_at: Instant,
     last_progress_emit: Instant,
     entries_visited: u64,
@@ -52,6 +56,8 @@ struct ScanAccumulator {
     permission_denied_count: u64,
     unreadable_entry_count: u64,
     skipped_symlink_count: u64,
+    skipped_hard_link_count: u64,
+    skipped_mounted_filesystem_count: u64,
     skipped_special_file_count: u64,
     top_level_items: Vec<ScanNodeSummary>,
 }
@@ -61,6 +67,7 @@ impl ScanAccumulator {
         app_handle: Option<AppHandle>,
         cancellation: Arc<AtomicBool>,
         target_label: &str,
+        root_filesystem_id: Option<u64>,
     ) -> Self {
         let started_at = Instant::now();
 
@@ -68,6 +75,8 @@ impl ScanAccumulator {
             app_handle,
             cancellation,
             target_label: target_label.to_owned(),
+            root_filesystem_id,
+            seen_hard_links: HashSet::new(),
             started_at,
             last_progress_emit: started_at,
             entries_visited: 0,
@@ -77,6 +86,8 @@ impl ScanAccumulator {
             permission_denied_count: 0,
             unreadable_entry_count: 0,
             skipped_symlink_count: 0,
+            skipped_hard_link_count: 0,
+            skipped_mounted_filesystem_count: 0,
             skipped_special_file_count: 0,
             top_level_items: Vec::with_capacity(MAX_TOP_LEVEL_ITEMS),
         }
@@ -346,7 +357,11 @@ fn scan_directory(
     app_handle: Option<AppHandle>,
     cancellation: Arc<AtomicBool>,
 ) -> ScanResult<ScanSummary> {
-    let mut accumulator = ScanAccumulator::new(app_handle, cancellation, target_label);
+    let root_metadata = fs::metadata(root)
+        .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
+    let root_filesystem_id = filesystem_id(&root_metadata);
+    let mut accumulator =
+        ScanAccumulator::new(app_handle, cancellation, target_label, root_filesystem_id);
     accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
 
@@ -397,6 +412,8 @@ fn scan_directory(
         permission_denied_count: accumulator.permission_denied_count,
         unreadable_entry_count: accumulator.unreadable_entry_count,
         skipped_symlink_count: accumulator.skipped_symlink_count,
+        skipped_hard_link_count: accumulator.skipped_hard_link_count,
+        skipped_mounted_filesystem_count: accumulator.skipped_mounted_filesystem_count,
         skipped_special_file_count: accumulator.skipped_special_file_count,
         top_level_items: accumulator.top_level_items,
     })
@@ -418,9 +435,25 @@ fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<Opti
         return Ok(None);
     }
 
+    if accumulator.root_filesystem_id.is_some()
+        && filesystem_id(&metadata) != accumulator.root_filesystem_id
+    {
+        accumulator.skipped_mounted_filesystem_count += 1;
+        return Ok(None);
+    }
+
     if metadata.is_file() {
-        let size_bytes = metadata.len();
         accumulator.file_count += 1;
+        if let Some(identity) = hard_link_identity(&metadata) {
+            if !accumulator.seen_hard_links.insert(identity) {
+                accumulator.skipped_hard_link_count += 1;
+                return Ok(Some(MeasuredEntry {
+                    kind: ScanNodeKind::File,
+                    size_bytes: 0,
+                }));
+            }
+        }
+        let size_bytes = metadata.len();
         accumulator.total_size_bytes = accumulator.total_size_bytes.saturating_add(size_bytes);
         return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::File,
@@ -474,6 +507,7 @@ fn scan_directory_contents(path: &Path, accumulator: &mut ScanAccumulator) -> Sc
 mod tests {
     use std::{
         fs,
+        path::PathBuf,
         sync::{
             atomic::{AtomicBool, Ordering},
             Arc,
@@ -492,8 +526,6 @@ mod tests {
                 .as_nanos()
         ))
     }
-
-    use std::path::PathBuf;
 
     #[test]
     fn summarizes_files_without_exposing_a_recursive_tree() {
@@ -515,6 +547,25 @@ mod tests {
             .iter()
             .all(|item| item.name != "large.txt"));
 
+        fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn counts_hard_link_bytes_once() {
+        let fixture = unique_fixture_path("hard-link-test");
+        fs::create_dir_all(&fixture).expect("fixture directory should be created");
+        let original = fixture.join("original.bin");
+        fs::write(&original, b"abcdefgh").expect("fixture file should be written");
+        fs::hard_link(&original, fixture.join("linked.bin"))
+            .expect("fixture hard link should be created");
+
+        let summary = scan_directory(&fixture, "Fixture", None, Arc::new(AtomicBool::new(false)))
+            .expect("fixture scan should succeed");
+
+        assert_eq!(summary.file_count, 2);
+        assert_eq!(summary.total_size_bytes, 8);
+        assert_eq!(summary.skipped_hard_link_count, 1);
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }
 

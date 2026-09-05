@@ -52,6 +52,8 @@ pub struct ScanSummary {
     pub permission_denied_count: u64,
     pub unreadable_entry_count: u64,
     pub skipped_symlink_count: u64,
+    pub skipped_hard_link_count: u64,
+    pub skipped_mounted_filesystem_count: u64,
     pub skipped_special_file_count: u64,
     pub top_level_items: Vec<ScanNodeSummary>,
 }

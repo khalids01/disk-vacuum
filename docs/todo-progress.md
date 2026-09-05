@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Validate scan cancellation in Tauri on macOS and Linux**
+- Current task: **Validate filesystem-boundary scan behavior on macOS and Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -447,8 +447,8 @@ Only create when needed.
 - [ ] Parallel filesystem walk
 - [x] Permission errors handled
 - [x] Symlink behavior defined
-- [ ] Hard links considered
-- [ ] Mounted filesystem behavior defined
+- [x] Hard links considered
+- [x] Mounted filesystem behavior defined
 - [x] Size aggregation
 - [x] File/folder counts
 - [ ] Category classification

@@ -14,6 +14,8 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     summary.permissionDeniedCount +
     summary.unreadableEntryCount +
     summary.skippedSymlinkCount +
+    summary.skippedHardLinkCount +
+    summary.skippedMountedFilesystemCount +
     summary.skippedSpecialFileCount;
 
   return (
@@ -82,7 +84,8 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
           <p>
             {skippedCount.toLocaleString()} item
             {skippedCount === 1 ? " was" : "s were"} skipped because they were
-            unreadable, special, or symbolic links.
+            unreadable, special, symbolic links, duplicate hard links, or
+            separate mounted filesystems.
           </p>
         </div>
       )}

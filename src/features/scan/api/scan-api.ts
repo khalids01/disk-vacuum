@@ -35,6 +35,8 @@ export interface ScanSummary {
   permissionDeniedCount: number;
   unreadableEntryCount: number;
   skippedSymlinkCount: number;
+  skippedHardLinkCount: number;
+  skippedMountedFilesystemCount: number;
   skippedSpecialFileCount: number;
   topLevelItems: ScanNodeSummary[];
 }
