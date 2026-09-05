@@ -13,6 +13,7 @@ pub fn run() {
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
             features::scan::service::get_scan_directory,
+            features::scan::service::get_scan_node_details,
             features::scan::service::get_scan_treemap,
             features::scan::service::scan_directory_path,
             features::scan::service::scan_home_directory,

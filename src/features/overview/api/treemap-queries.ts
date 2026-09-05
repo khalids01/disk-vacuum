@@ -1,5 +1,20 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getScanTreemap } from "@/features/scan/api/scan-api";
+import {
+  getScanNodeDetails,
+  getScanTreemap,
+} from "@/features/scan/api/scan-api";
+
+export function scanNodeDetailsQuery(
+  scanVersion: number,
+  directoryId: number,
+  nodeId: number,
+) {
+  return queryOptions({
+    queryKey: ["scan-node-details", scanVersion, directoryId, nodeId],
+    queryFn: () => getScanNodeDetails(directoryId, nodeId),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
 
 export function scanTreemapQuery(
   scanVersion: number,

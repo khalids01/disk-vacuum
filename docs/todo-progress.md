@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 4 — Space Map**
-- Current task: **Add selected-node details to the Space Map**
+- Current task: **Test the Space Map with a large completed scan**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -107,7 +107,7 @@ Create only required modules; do not create empty architecture for appearance.
 - [ ] Spacing conventions
 - [ ] Focus-visible styles
 - [ ] Disabled styles
-- [ ] Selection styles
+- [x] Selection styles
 - [ ] Scrollbar treatment if needed
 - [ ] Responsive breakpoint conventions
 - [ ] No Reclaim-red visual clone
@@ -216,8 +216,8 @@ Only create when needed.
 - [x] Breadcrumb
 - [x] Back navigation
 - [ ] Context menu
-- [ ] Item detail
-- [ ] Mobile bottom-sheet detail
+- [x] Item detail
+- [x] Mobile bottom-sheet detail
 - [ ] Tablet layout
 - [ ] Mobile layout
 
@@ -483,7 +483,7 @@ Only create when needed.
 - [x] Treemap summary query
 - [x] Drill-down query
 - [x] Category data
-- [ ] Selected node details
+- [x] Selected node details
 - [x] Wire real treemap
 - [x] Ensure no full index crosses IPC
 - [ ] Large scan tested

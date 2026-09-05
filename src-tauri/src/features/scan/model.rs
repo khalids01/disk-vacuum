@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use serde::Serialize;
 
@@ -46,6 +46,7 @@ pub struct ScanNodeSummary {
     pub kind: ScanNodeKind,
     pub size_bytes: u64,
     pub category: ScanCategory,
+    pub modified_at_unix_seconds: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -129,6 +130,7 @@ pub struct ScanDirectoryRecord {
 }
 
 pub struct CompletedScan {
+    pub root_path: PathBuf,
     pub summary: ScanSummary,
     pub directories: HashMap<u64, ScanDirectoryRecord>,
 }
@@ -150,6 +152,20 @@ pub struct ScanTreemapNode {
     pub size_bytes: u64,
     pub category: ScanCategory,
     pub grouped_item_count: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanNodeDetails {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub name: String,
+    pub kind: ScanNodeKind,
+    pub size_bytes: u64,
+    pub category: ScanCategory,
+    pub path: String,
+    pub child_count: usize,
+    pub modified_at_unix_seconds: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]

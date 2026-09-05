@@ -52,6 +52,18 @@ export interface ScanTreemapNode {
   groupedItemCount: number;
 }
 
+export interface ScanNodeDetails {
+  id: number;
+  parentDirectoryId: number;
+  name: string;
+  kind: ScanNodeKind;
+  sizeBytes: number;
+  category: ScanCategory;
+  path: string;
+  childCount: number;
+  modifiedAtUnixSeconds: number | null;
+}
+
 export interface ScanTreemapSummary {
   directoryId: number;
   parentId: number | null;
@@ -81,6 +93,7 @@ export interface ScanNodeSummary {
   kind: ScanNodeKind;
   sizeBytes: number;
   category: ScanCategory;
+  modifiedAtUnixSeconds: number | null;
 }
 
 export interface ScanSummary {
@@ -99,6 +112,13 @@ export interface ScanSummary {
   rootDirectoryId: number;
   topLevelItems: ScanNodeSummary[];
   categories: ScanCategorySummary[];
+}
+
+export function getScanNodeDetails(directoryId: number, nodeId: number) {
+  return invoke<ScanNodeDetails>("get_scan_node_details", {
+    directoryId,
+    nodeId,
+  });
 }
 
 export function getScanTreemap(directoryId: number, maxNodes = 48) {

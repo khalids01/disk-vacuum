@@ -81,6 +81,7 @@ mod tests {
 
     fn completed_scan(children: Vec<ScanNodeSummary>) -> CompletedScan {
         CompletedScan {
+            root_path: "/fixture".into(),
             summary: ScanSummary {
                 target_label: "Fixture".to_owned(),
                 completed_at_unix_seconds: 0,
@@ -119,6 +120,7 @@ mod tests {
                 kind: ScanNodeKind::File,
                 size_bytes: 10 - index,
                 category: ScanCategory::Documents,
+                modified_at_unix_seconds: Some(1_700_000_000),
             })
             .collect();
         let summary = build_treemap_summary(&completed_scan(children), 0, 4)

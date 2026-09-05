@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useSearch } from "@tanstack/react-router";
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -25,6 +26,7 @@ interface BreadcrumbItem {
 
 export function ExplorerPage() {
   const { data: currentScan } = useQuery(currentScanQuery);
+  const { directoryId } = useSearch({ from: "/explorer" });
 
   return (
     <div className="space-y-5">
@@ -35,8 +37,13 @@ export function ExplorerPage() {
       />
       {currentScan ? (
         <ScanExplorer
-          key={currentScan.completedAtUnixSeconds}
+          key={
+            String(currentScan.completedAtUnixSeconds) +
+            "-" +
+            String(directoryId)
+          }
           summary={currentScan}
+          initialDirectoryId={directoryId}
         />
       ) : (
         <ExplorerEmptySection />
@@ -45,9 +52,20 @@ export function ExplorerPage() {
   );
 }
 
-function ScanExplorer({ summary }: { summary: ScanSummary }) {
+function ScanExplorer({
+  summary,
+  initialDirectoryId,
+}: {
+  summary: ScanSummary;
+  initialDirectoryId?: number;
+}) {
+  const startsAtRoot =
+    initialDirectoryId === undefined ||
+    initialDirectoryId === summary.rootDirectoryId;
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
-    { id: summary.rootDirectoryId, name: summary.targetLabel },
+    startsAtRoot
+      ? { id: summary.rootDirectoryId, name: summary.targetLabel }
+      : { id: initialDirectoryId, name: "Selected location" },
   ]);
   const [offset, setOffset] = useState(0);
   const activeDirectory = breadcrumbs[breadcrumbs.length - 1] ?? breadcrumbs[0];

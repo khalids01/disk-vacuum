@@ -22,8 +22,8 @@ use crate::{
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
             CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
-            ScanDirectoryPage, ScanDirectoryRecord, ScanNodeKind, ScanNodeSummary, ScanProgress,
-            ScanSummary, ScanTreemapSummary,
+            ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
+            ScanProgress, ScanSummary, ScanTreemapSummary,
         },
         treemap::build_treemap_summary,
     },
@@ -247,6 +247,7 @@ struct MeasuredEntry {
     kind: ScanNodeKind,
     size_bytes: u64,
     category: ScanCategory,
+    modified_at_unix_seconds: Option<u64>,
 }
 
 #[tauri::command]
@@ -370,6 +371,72 @@ pub fn get_scan_treemap(
         .ok_or_else(|| "Complete a scan before viewing its space map.".to_owned())?;
 
     build_treemap_summary(completed_scan, directory_id, max_nodes)
+}
+
+#[tauri::command]
+pub fn get_scan_node_details(
+    directory_id: u64,
+    node_id: u64,
+    state: State<'_, AppState>,
+) -> Result<ScanNodeDetails, String> {
+    let completed_scan = state
+        .completed_scan
+        .lock()
+        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+    let completed_scan = completed_scan
+        .as_ref()
+        .ok_or_else(|| "Complete a scan before inspecting an item.".to_owned())?;
+
+    build_node_details(completed_scan, directory_id, node_id)
+}
+
+fn build_node_details(
+    completed_scan: &CompletedScan,
+    directory_id: u64,
+    node_id: u64,
+) -> Result<ScanNodeDetails, String> {
+    let directory = completed_scan
+        .directories
+        .get(&directory_id)
+        .ok_or_else(|| "The scanned directory is no longer available.".to_owned())?;
+    let node = directory
+        .children
+        .iter()
+        .find(|node| node.id == node_id)
+        .ok_or_else(|| "The selected scanned item is no longer available.".to_owned())?;
+
+    let mut directory_names = Vec::new();
+    let mut current_id = directory_id;
+    while current_id != completed_scan.summary.root_directory_id {
+        let current = completed_scan
+            .directories
+            .get(&current_id)
+            .ok_or_else(|| "The scanned path could not be reconstructed.".to_owned())?;
+        directory_names.push(current.name.as_str());
+        current_id = current
+            .parent_id
+            .ok_or_else(|| "The scanned path could not be reconstructed.".to_owned())?;
+    }
+    let mut path = completed_scan.root_path.clone();
+    for name in directory_names.into_iter().rev() {
+        path.push(name);
+    }
+    path.push(&node.name);
+
+    Ok(ScanNodeDetails {
+        id: node.id,
+        parent_directory_id: directory_id,
+        name: node.name.clone(),
+        kind: node.kind,
+        size_bytes: node.size_bytes,
+        category: node.category,
+        path: path.to_string_lossy().into_owned(),
+        child_count: completed_scan
+            .directories
+            .get(&node.id)
+            .map_or(0, |record| record.children.len()),
+        modified_at_unix_seconds: node.modified_at_unix_seconds,
+    })
 }
 
 fn build_directory_page(
@@ -633,6 +700,7 @@ fn scan_directory(
                         kind: measured_entry.kind,
                         size_bytes: measured_entry.size_bytes,
                         category: measured_entry.category,
+                        modified_at_unix_seconds: measured_entry.modified_at_unix_seconds,
                     })
             })
             .collect::<Vec<_>>()
@@ -676,6 +744,7 @@ fn scan_directory(
     };
 
     Ok(CompletedScan {
+        root_path: root.to_path_buf(),
         summary,
         directories: accumulator.take_directories(),
     })
@@ -719,6 +788,12 @@ fn scan_entry(
         return Ok(None);
     }
 
+    let modified_at_unix_seconds = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs());
+
     if metadata.is_file() {
         let node_id = accumulator.next_node_id();
         accumulator.file_count.fetch_add(1, Ordering::Relaxed);
@@ -739,6 +814,7 @@ fn scan_entry(
                 kind: ScanNodeKind::File,
                 size_bytes: 0,
                 category,
+                modified_at_unix_seconds,
             }));
         }
 
@@ -752,6 +828,7 @@ fn scan_entry(
             kind: ScanNodeKind::File,
             size_bytes,
             category,
+            modified_at_unix_seconds,
         }));
     }
 
@@ -780,6 +857,7 @@ fn scan_entry(
             kind: ScanNodeKind::Directory,
             size_bytes,
             category,
+            modified_at_unix_seconds,
         }));
     }
 
@@ -823,6 +901,7 @@ fn scan_directory_contents(
                     kind: measured_entry.kind,
                     size_bytes: measured_entry.size_bytes,
                     category: measured_entry.category,
+                    modified_at_unix_seconds: measured_entry.modified_at_unix_seconds,
                 })
         })
         .collect::<Vec<_>>();
@@ -856,8 +935,8 @@ mod tests {
     };
 
     use super::{
-        allocated_size, build_directory_page, scan_directory, ScanCapacity, ScanFailure,
-        ScanNodeKind,
+        allocated_size, build_directory_page, build_node_details, scan_directory, ScanCapacity,
+        ScanFailure, ScanNodeKind,
     };
 
     fn unique_fixture_path(name: &str) -> PathBuf {
@@ -953,6 +1032,20 @@ mod tests {
         assert_eq!(nested_page.parent_id, Some(summary.root_directory_id));
         assert_eq!(nested_page.items.len(), 1);
         assert_eq!(nested_page.items[0].name, "large.txt");
+        let nested_details = build_node_details(&completed, summary.root_directory_id, nested.id)
+            .expect("nested directory details should be available");
+        assert_eq!(
+            nested_details.path,
+            fixture.join("nested").to_string_lossy()
+        );
+        assert_eq!(nested_details.child_count, 1);
+        let file_details = build_node_details(&completed, nested.id, nested_page.items[0].id)
+            .expect("file details should be available");
+        assert_eq!(
+            file_details.path,
+            fixture.join("nested").join("large.txt").to_string_lossy()
+        );
+        assert_eq!(file_details.child_count, 0);
 
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }

@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { scanTreemapQuery } from "@/features/overview/api/treemap-queries";
+import { ScanNodeDetailsPanel } from "@/features/overview/components/sections/scan-node-details-panel";
 import { createTreemapLayout } from "@/features/overview/lib/treemap-layout";
 import type {
   ScanCategory,
@@ -41,6 +42,9 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
     { id: summary.rootDirectoryId, name: summary.targetLabel },
   ]);
+  const [selectedNode, setSelectedNode] = useState<ScanTreemapNode | null>(
+    null,
+  );
   const activeDirectory = breadcrumbs[breadcrumbs.length - 1] ?? {
     id: summary.rootDirectoryId,
     name: summary.targetLabel,
@@ -62,7 +66,19 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
       ...current,
       { id: directoryId, name: node.name },
     ]);
+    setSelectedNode(null);
   }
+
+  function selectNode(node: ScanTreemapNode) {
+    if (node.id !== null) setSelectedNode(node);
+  }
+
+  function openBreadcrumb(index: number) {
+    setBreadcrumbs((current) => current.slice(0, index + 1));
+    setSelectedNode(null);
+  }
+
+  const selectedNodeId = selectedNode?.id ?? null;
 
   return (
     <SectionCard className="overflow-visible">
@@ -73,7 +89,10 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
             size="icon-sm"
             aria-label="Go to parent folder in space map"
             disabled={breadcrumbs.length === 1}
-            onClick={() => setBreadcrumbs((current) => current.slice(0, -1))}
+            onClick={() => {
+              setBreadcrumbs((current) => current.slice(0, -1));
+              setSelectedNode(null);
+            }}
           >
             <ChevronLeftIcon />
           </Button>
@@ -89,9 +108,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
                 <button
                   type="button"
                   className="max-w-48 truncate rounded px-1.5 py-1 font-medium hover:bg-muted"
-                  onClick={() =>
-                    setBreadcrumbs((current) => current.slice(0, index + 1))
-                  }
+                  onClick={() => openBreadcrumb(index)}
                 >
                   {item.name}
                 </button>
@@ -101,105 +118,150 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           {treemap.data
-            ? `${treemap.data.totalItems.toLocaleString()} direct items · ${treemap.data.nodes.length} bounded regions`
+            ? `${treemap.data.totalItems.toLocaleString()} direct items · ${treemap.data.nodes.length} bounded regions · select once, open folders with double-click or Enter`
             : "Loading space map…"}
         </p>
       </div>
 
-      {treemap.isPending ? (
-        <p className="p-5 text-sm text-muted-foreground">Loading space map…</p>
-      ) : treemap.isError ? (
-        <p className="p-5 text-sm text-destructive">
-          {treemap.error instanceof Error
-            ? treemap.error.message
-            : "The space map could not be loaded."}
-        </p>
-      ) : rectangles.length === 0 ? (
-        <p className="p-5 text-sm text-muted-foreground">
-          This folder has no sized indexed content to map.
-        </p>
-      ) : (
-        <>
-          <section
-            className="relative h-[22rem] overflow-hidden bg-muted/30 p-0.5 sm:h-[30rem]"
-            aria-label={`Storage map for ${activeDirectory.name}`}
-          >
-            {rectangles.map((rectangle, index) => {
-              const { node } = rectangle;
-              const canOpen = node.kind === "directory";
-              const showDetails =
-                rectangle.width >= 12 && rectangle.height >= 10;
-              return (
-                <button
-                  key={node.id ?? `group-${index}`}
-                  type="button"
-                  disabled={!canOpen}
-                  title={`${node.name} · ${formatBytes(node.sizeBytes)} · ${formatScanCategory(node.category)}`}
-                  className={`group absolute overflow-hidden rounded border p-2 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default ${categoryStyles[node.category]}`}
-                  style={{
-                    left: `${rectangle.x}%`,
-                    top: `${rectangle.y}%`,
-                    width: `calc(${rectangle.width}% - 2px)`,
-                    height: `calc(${rectangle.height}% - 2px)`,
-                  }}
-                  onClick={() => openNode(node)}
-                >
-                  <span className="flex min-w-0 items-start justify-between gap-1">
-                    <span className="truncate text-xs font-semibold sm:text-sm">
-                      {node.name}
-                    </span>
-                    {canOpen && showDetails && (
-                      <FolderOpenIcon className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
-                    )}
-                  </span>
-                  {showDetails && (
-                    <>
-                      <span className="mt-1 block font-mono text-[11px]">
-                        {formatBytes(node.sizeBytes)}
+      <div
+        className={
+          selectedNodeId === null
+            ? undefined
+            : "lg:grid lg:grid-cols-[minmax(0,1fr)_18rem]"
+        }
+      >
+        <div className="min-w-0">
+          {treemap.isPending ? (
+            <p className="p-5 text-sm text-muted-foreground">
+              Loading space map…
+            </p>
+          ) : treemap.isError ? (
+            <p className="p-5 text-sm text-destructive">
+              {treemap.error instanceof Error
+                ? treemap.error.message
+                : "The space map could not be loaded."}
+            </p>
+          ) : rectangles.length === 0 ? (
+            <p className="p-5 text-sm text-muted-foreground">
+              This folder has no sized indexed content to map.
+            </p>
+          ) : (
+            <>
+              <section
+                className="relative h-[22rem] overflow-hidden bg-muted/30 p-0.5 sm:h-[30rem]"
+                aria-label={`Storage map for ${activeDirectory.name}`}
+              >
+                {rectangles.map((rectangle, index) => {
+                  const { node } = rectangle;
+                  const canOpen = node.kind === "directory";
+                  const isSelected =
+                    node.id !== null && node.id === selectedNodeId;
+                  const showDetails =
+                    rectangle.width >= 12 && rectangle.height >= 10;
+                  return (
+                    <button
+                      key={node.id ?? `group-${index}`}
+                      type="button"
+                      disabled={node.id === null}
+                      aria-pressed={node.id === null ? undefined : isSelected}
+                      title={`${node.name} · ${formatBytes(node.sizeBytes)} · ${formatScanCategory(node.category)}`}
+                      className={`group absolute overflow-hidden rounded border p-2 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default ${isSelected ? "z-10 ring-2 ring-primary ring-offset-1 ring-offset-background" : ""} ${categoryStyles[node.category]}`}
+                      style={{
+                        left: `${rectangle.x}%`,
+                        top: `${rectangle.y}%`,
+                        width: `calc(${rectangle.width}% - 2px)`,
+                        height: `calc(${rectangle.height}% - 2px)`,
+                      }}
+                      onClick={() => selectNode(node)}
+                      onDoubleClick={() => openNode(node)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && canOpen) {
+                          event.preventDefault();
+                          openNode(node);
+                        }
+                      }}
+                    >
+                      <span className="flex min-w-0 items-start justify-between gap-1">
+                        <span className="truncate text-xs font-semibold sm:text-sm">
+                          {node.name}
+                        </span>
+                        {canOpen && showDetails && (
+                          <FolderOpenIcon className="size-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
+                        )}
                       </span>
-                      <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-                        {node.kind === "group"
-                          ? `${node.groupedItemCount.toLocaleString()} smaller items`
-                          : formatScanCategory(node.category)}
-                      </span>
-                    </>
-                  )}
-                </button>
-              );
-            })}
-          </section>
+                      {showDetails && (
+                        <>
+                          <span className="mt-1 block font-mono text-[11px]">
+                            {formatBytes(node.sizeBytes)}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                            {node.kind === "group"
+                              ? `${node.groupedItemCount.toLocaleString()} smaller items`
+                              : formatScanCategory(node.category)}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  );
+                })}
+              </section>
 
-          {directories.length > 0 && (
-            <div className="border-t border-border">
-              <div className="px-4 py-3 sm:px-5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Directories in this map
-                </h3>
-              </div>
-              <div className="divide-y divide-border">
-                {directories.map((directory) => (
-                  <button
-                    key={directory.id}
-                    type="button"
-                    className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5"
-                    onClick={() => openNode(directory)}
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <FolderOpenIcon className="size-4 shrink-0 text-primary" />
-                      <span className="truncate text-sm font-medium">
-                        {directory.name}
-                      </span>
-                    </span>
-                    <span className="shrink-0 font-mono text-xs text-muted-foreground sm:text-sm">
-                      {formatBytes(directory.sizeBytes)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
+              {directories.length > 0 && (
+                <div className="border-t border-border">
+                  <div className="px-4 py-3 sm:px-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Directories in this map
+                    </h3>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {directories.map((directory) => {
+                      const isSelected = directory.id === selectedNodeId;
+                      return (
+                        <button
+                          key={directory.id}
+                          type="button"
+                          aria-pressed={isSelected}
+                          className={`flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-5 ${isSelected ? "bg-primary/10" : ""}`}
+                          onClick={() => selectNode(directory)}
+                          onDoubleClick={() => openNode(directory)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              openNode(directory);
+                            }
+                          }}
+                        >
+                          <span className="flex min-w-0 items-center gap-3">
+                            <FolderOpenIcon className="size-4 shrink-0 text-primary" />
+                            <span className="truncate text-sm font-medium">
+                              {directory.name}
+                            </span>
+                          </span>
+                          <span className="shrink-0 font-mono text-xs text-muted-foreground sm:text-sm">
+                            {formatBytes(directory.sizeBytes)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-        </>
-      )}
+        </div>
+
+        {selectedNodeId !== null && (
+          <ScanNodeDetailsPanel
+            scanVersion={summary.completedAtUnixSeconds}
+            directoryId={activeDirectory.id}
+            nodeId={selectedNodeId}
+            onClose={() => setSelectedNode(null)}
+            onOpenDirectory={() => {
+              if (selectedNode) openNode(selectedNode);
+            }}
+          />
+        )}
+      </div>
     </SectionCard>
   );
 }
