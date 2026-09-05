@@ -17,7 +17,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::{
     app_state::{ActiveScan, AppState},
     features::scan::{
-        filesystem_identity::{filesystem_id, hard_link_identity, FileIdentity},
+        filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
             ScanCapacity, ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress,
             ScanSummary,
@@ -593,7 +593,7 @@ fn scan_entry(
             }));
         }
 
-        let size_bytes = metadata.len();
+        let size_bytes = allocated_size(&metadata);
         accumulator
             .total_size_bytes
             .fetch_add(size_bytes, Ordering::Relaxed);
@@ -661,7 +661,7 @@ mod tests {
         time::SystemTime,
     };
 
-    use super::{scan_directory, ScanCapacity, ScanFailure};
+    use super::{allocated_size, scan_directory, ScanCapacity, ScanFailure};
 
     fn unique_fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -693,7 +693,13 @@ mod tests {
         )
         .expect("fixture scan should succeed");
 
-        assert_eq!(summary.total_size_bytes, 11);
+        let expected_size = allocated_size(
+            &fs::metadata(fixture.join("small.txt")).expect("small file metadata should exist"),
+        ) + allocated_size(
+            &fs::metadata(fixture.join("nested").join("large.txt"))
+                .expect("large file metadata should exist"),
+        );
+        assert_eq!(summary.total_size_bytes, expected_size);
         let capacity = summary
             .capacity
             .expect("fixture capacity should be preserved");
@@ -730,7 +736,10 @@ mod tests {
         .expect("fixture scan should succeed");
 
         assert_eq!(summary.file_count, 2);
-        assert_eq!(summary.total_size_bytes, 8);
+        assert_eq!(
+            summary.total_size_bytes,
+            allocated_size(&fs::metadata(&original).expect("original metadata should exist"))
+        );
         assert_eq!(summary.skipped_hard_link_count, 1);
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }
