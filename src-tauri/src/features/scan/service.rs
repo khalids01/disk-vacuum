@@ -4,7 +4,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
@@ -22,7 +22,8 @@ use crate::{
 };
 
 const MAX_TOP_LEVEL_ITEMS: usize = 24;
-const MAX_SCAN_WORKERS: usize = 8;
+const MAX_SCAN_WORKERS: usize = 16;
+const PROGRESS_BATCH_SIZE: u64 = 1_024;
 const PROGRESS_EVENT_NAME: &str = "scan-progress";
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -48,20 +49,20 @@ struct ScanAccumulator {
     cancellation: Arc<AtomicBool>,
     target_label: String,
     root_filesystem_id: Option<u64>,
-    seen_hard_links: HashSet<FileIdentity>,
+    seen_hard_links: Mutex<HashSet<FileIdentity>>,
     started_at: Instant,
-    last_progress_emit: Instant,
-    entries_visited: u64,
-    total_size_bytes: u64,
-    file_count: u64,
-    directory_count: u64,
-    permission_denied_count: u64,
-    unreadable_entry_count: u64,
-    skipped_symlink_count: u64,
-    skipped_hard_link_count: u64,
-    skipped_mounted_filesystem_count: u64,
-    skipped_special_file_count: u64,
-    top_level_items: Vec<ScanNodeSummary>,
+    last_progress_emit: Mutex<Instant>,
+    entries_visited: AtomicU64,
+    total_size_bytes: AtomicU64,
+    file_count: AtomicU64,
+    directory_count: AtomicU64,
+    permission_denied_count: AtomicU64,
+    unreadable_entry_count: AtomicU64,
+    skipped_symlink_count: AtomicU64,
+    skipped_hard_link_count: AtomicU64,
+    skipped_mounted_filesystem_count: AtomicU64,
+    skipped_special_file_count: AtomicU64,
+    top_level_items: Mutex<Vec<ScanNodeSummary>>,
 }
 
 impl ScanAccumulator {
@@ -78,20 +79,20 @@ impl ScanAccumulator {
             cancellation,
             target_label: target_label.to_owned(),
             root_filesystem_id,
-            seen_hard_links: HashSet::new(),
+            seen_hard_links: Mutex::new(HashSet::new()),
             started_at,
-            last_progress_emit: started_at,
-            entries_visited: 0,
-            total_size_bytes: 0,
-            file_count: 0,
-            directory_count: 1,
-            permission_denied_count: 0,
-            unreadable_entry_count: 0,
-            skipped_symlink_count: 0,
-            skipped_hard_link_count: 0,
-            skipped_mounted_filesystem_count: 0,
-            skipped_special_file_count: 0,
-            top_level_items: Vec::with_capacity(MAX_TOP_LEVEL_ITEMS),
+            last_progress_emit: Mutex::new(started_at),
+            entries_visited: AtomicU64::new(0),
+            total_size_bytes: AtomicU64::new(0),
+            file_count: AtomicU64::new(0),
+            directory_count: AtomicU64::new(1),
+            permission_denied_count: AtomicU64::new(0),
+            unreadable_entry_count: AtomicU64::new(0),
+            skipped_symlink_count: AtomicU64::new(0),
+            skipped_hard_link_count: AtomicU64::new(0),
+            skipped_mounted_filesystem_count: AtomicU64::new(0),
+            skipped_special_file_count: AtomicU64::new(0),
+            top_level_items: Mutex::new(Vec::with_capacity(MAX_TOP_LEVEL_ITEMS)),
         }
     }
 
@@ -103,48 +104,61 @@ impl ScanAccumulator {
         Ok(())
     }
 
-    fn record_entry_visit(&mut self) -> ScanResult<()> {
+    fn record_entry_visit(&self) -> ScanResult<()> {
         self.check_cancelled()?;
-        self.entries_visited += 1;
-        self.emit_progress(false);
+        let entries_visited = self.entries_visited.fetch_add(1, Ordering::Relaxed) + 1;
+        if entries_visited.is_multiple_of(PROGRESS_BATCH_SIZE) {
+            self.emit_progress(false);
+        }
         Ok(())
     }
 
-    fn emit_progress(&mut self, force: bool) {
-        if !force && self.last_progress_emit.elapsed() < PROGRESS_INTERVAL {
+    fn emit_progress(&self, force: bool) {
+        let mut last_progress_emit = self
+            .last_progress_emit
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if !force && last_progress_emit.elapsed() < PROGRESS_INTERVAL {
             return;
         }
 
-        self.last_progress_emit = Instant::now();
+        *last_progress_emit = Instant::now();
+        drop(last_progress_emit);
+
         if let Some(app_handle) = &self.app_handle {
             let _ = app_handle.emit(
                 PROGRESS_EVENT_NAME,
                 ScanProgress {
                     target_label: self.target_label.clone(),
-                    entries_visited: self.entries_visited,
-                    bytes_observed: self.total_size_bytes,
+                    entries_visited: self.entries_visited.load(Ordering::Relaxed),
+                    bytes_observed: self.total_size_bytes.load(Ordering::Relaxed),
                     elapsed_milliseconds: self.started_at.elapsed().as_millis() as u64,
                 },
             );
         }
     }
 
-    fn record_read_error(&mut self, error: &std::io::Error) {
-        if error.kind() == std::io::ErrorKind::PermissionDenied {
-            self.permission_denied_count += 1;
+    fn record_read_error(&self, error: &std::io::Error) {
+        let counter = if error.kind() == std::io::ErrorKind::PermissionDenied {
+            &self.permission_denied_count
         } else {
-            self.unreadable_entry_count += 1;
-        }
+            &self.unreadable_entry_count
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
     }
 
-    fn record_top_level_item(&mut self, item: ScanNodeSummary) {
-        if self.top_level_items.len() < MAX_TOP_LEVEL_ITEMS {
-            self.top_level_items.push(item);
+    fn record_top_level_item(&self, item: ScanNodeSummary) {
+        let mut top_level_items = self
+            .top_level_items
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if top_level_items.len() < MAX_TOP_LEVEL_ITEMS {
+            top_level_items.push(item);
             return;
         }
 
-        let Some((smallest_index, smallest_item)) = self
-            .top_level_items
+        let Some((smallest_index, smallest_item)) = top_level_items
             .iter()
             .enumerate()
             .min_by_key(|(_, item)| item.size_bytes)
@@ -153,8 +167,20 @@ impl ScanAccumulator {
         };
 
         if item.size_bytes > smallest_item.size_bytes {
-            self.top_level_items[smallest_index] = item;
+            top_level_items[smallest_index] = item;
         }
+    }
+
+    fn take_top_level_items(&self) -> Vec<ScanNodeSummary> {
+        let mut top_level_items = self
+            .top_level_items
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        top_level_items.sort_by_key(|item| Reverse(item.size_bytes));
+        for (index, item) in top_level_items.iter_mut().enumerate() {
+            item.id = format!("top-{index}");
+        }
+        std::mem::take(&mut *top_level_items)
     }
 }
 
@@ -362,19 +388,14 @@ fn scan_directory(
     let root_metadata = fs::metadata(root)
         .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
     let root_filesystem_id = filesystem_id(&root_metadata);
-    let accumulator = Arc::new(Mutex::new(ScanAccumulator::new(
+    let accumulator = Arc::new(ScanAccumulator::new(
         app_handle,
         cancellation,
         target_label,
         root_filesystem_id,
-    )));
-    {
-        let mut accumulator = accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        accumulator.check_cancelled()?;
-        accumulator.emit_progress(true);
-    }
+    ));
+    accumulator.check_cancelled()?;
+    accumulator.emit_progress(true);
 
     let root_entries = fs::read_dir(root)
         .map_err(|_| ScanFailure::Message("The selected scan location could not be read."))?;
@@ -389,10 +410,7 @@ fn scan_directory(
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
-                    accumulator
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .record_read_error(&error);
+                    accumulator.record_read_error(&error);
                     return;
                 }
             };
@@ -401,29 +419,17 @@ fn scan_directory(
                 return;
             };
 
-            accumulator
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_top_level_item(ScanNodeSummary {
-                    id: String::new(),
-                    name: entry.file_name().to_string_lossy().into_owned(),
-                    kind: measured_entry.kind,
-                    size_bytes: measured_entry.size_bytes,
-                });
+            accumulator.record_top_level_item(ScanNodeSummary {
+                id: String::new(),
+                name: entry.file_name().to_string_lossy().into_owned(),
+                kind: measured_entry.kind,
+                size_bytes: measured_entry.size_bytes,
+            });
         });
     });
 
-    let mut accumulator = accumulator
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
     accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
-    accumulator
-        .top_level_items
-        .sort_by_key(|item| Reverse(item.size_bytes));
-    for (index, item) in accumulator.top_level_items.iter_mut().enumerate() {
-        item.id = format!("top-{index}");
-    }
 
     Ok(ScanSummary {
         target_label: target_label.to_owned(),
@@ -431,85 +437,82 @@ fn scan_directory(
             .duration_since(UNIX_EPOCH)
             .map(|duration| duration.as_secs())
             .unwrap_or_default(),
-        total_size_bytes: accumulator.total_size_bytes,
-        file_count: accumulator.file_count,
-        directory_count: accumulator.directory_count,
-        permission_denied_count: accumulator.permission_denied_count,
-        unreadable_entry_count: accumulator.unreadable_entry_count,
-        skipped_symlink_count: accumulator.skipped_symlink_count,
-        skipped_hard_link_count: accumulator.skipped_hard_link_count,
-        skipped_mounted_filesystem_count: accumulator.skipped_mounted_filesystem_count,
-        skipped_special_file_count: accumulator.skipped_special_file_count,
-        top_level_items: std::mem::take(&mut accumulator.top_level_items),
+        total_size_bytes: accumulator.total_size_bytes.load(Ordering::Relaxed),
+        file_count: accumulator.file_count.load(Ordering::Relaxed),
+        directory_count: accumulator.directory_count.load(Ordering::Relaxed),
+        permission_denied_count: accumulator.permission_denied_count.load(Ordering::Relaxed),
+        unreadable_entry_count: accumulator.unreadable_entry_count.load(Ordering::Relaxed),
+        skipped_symlink_count: accumulator.skipped_symlink_count.load(Ordering::Relaxed),
+        skipped_hard_link_count: accumulator.skipped_hard_link_count.load(Ordering::Relaxed),
+        skipped_mounted_filesystem_count: accumulator
+            .skipped_mounted_filesystem_count
+            .load(Ordering::Relaxed),
+        skipped_special_file_count: accumulator
+            .skipped_special_file_count
+            .load(Ordering::Relaxed),
+        top_level_items: accumulator.take_top_level_items(),
     })
 }
 
 fn scan_worker_count() -> usize {
     std::thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1)
+        .map(|parallelism| usize::from(parallelism).saturating_mul(2))
+        .unwrap_or(2)
         .clamp(1, MAX_SCAN_WORKERS)
 }
 
 fn scan_entry(
     path: &Path,
-    accumulator: &Arc<Mutex<ScanAccumulator>>,
+    accumulator: &Arc<ScanAccumulator>,
 ) -> ScanResult<Option<MeasuredEntry>> {
-    accumulator
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .record_entry_visit()?;
+    accumulator.record_entry_visit()?;
 
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => {
-            accumulator
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_read_error(&error);
+            accumulator.record_read_error(&error);
             return Ok(None);
         }
     };
 
     if metadata.file_type().is_symlink() {
         accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .skipped_symlink_count += 1;
+            .skipped_symlink_count
+            .fetch_add(1, Ordering::Relaxed);
         return Ok(None);
     }
 
-    let crosses_filesystem_boundary = {
-        let accumulator = accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        accumulator.root_filesystem_id.is_some()
-            && filesystem_id(&metadata) != accumulator.root_filesystem_id
-    };
-    if crosses_filesystem_boundary {
+    if accumulator.root_filesystem_id.is_some()
+        && filesystem_id(&metadata) != accumulator.root_filesystem_id
+    {
         accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .skipped_mounted_filesystem_count += 1;
+            .skipped_mounted_filesystem_count
+            .fetch_add(1, Ordering::Relaxed);
         return Ok(None);
     }
 
     if metadata.is_file() {
-        let mut accumulator = accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        accumulator.file_count += 1;
-        if hard_link_identity(&metadata)
-            .is_some_and(|identity| !accumulator.seen_hard_links.insert(identity))
-        {
-            accumulator.skipped_hard_link_count += 1;
+        accumulator.file_count.fetch_add(1, Ordering::Relaxed);
+        if hard_link_identity(&metadata).is_some_and(|identity| {
+            !accumulator
+                .seen_hard_links
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .insert(identity)
+        }) {
+            accumulator
+                .skipped_hard_link_count
+                .fetch_add(1, Ordering::Relaxed);
             return Ok(Some(MeasuredEntry {
                 kind: ScanNodeKind::File,
                 size_bytes: 0,
             }));
         }
+
         let size_bytes = metadata.len();
-        accumulator.total_size_bytes = accumulator.total_size_bytes.saturating_add(size_bytes);
+        accumulator
+            .total_size_bytes
+            .fetch_add(size_bytes, Ordering::Relaxed);
         return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::File,
             size_bytes,
@@ -517,10 +520,7 @@ fn scan_entry(
     }
 
     if metadata.is_dir() {
-        accumulator
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .directory_count += 1;
+        accumulator.directory_count.fetch_add(1, Ordering::Relaxed);
         let size_bytes = scan_directory_contents(path, accumulator)?;
         return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::Directory,
@@ -529,27 +529,17 @@ fn scan_entry(
     }
 
     accumulator
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .skipped_special_file_count += 1;
+        .skipped_special_file_count
+        .fetch_add(1, Ordering::Relaxed);
     Ok(None)
 }
 
-fn scan_directory_contents(
-    path: &Path,
-    accumulator: &Arc<Mutex<ScanAccumulator>>,
-) -> ScanResult<u64> {
-    accumulator
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .check_cancelled()?;
+fn scan_directory_contents(path: &Path, accumulator: &Arc<ScanAccumulator>) -> ScanResult<u64> {
+    accumulator.check_cancelled()?;
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
-            accumulator
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .record_read_error(&error);
+            accumulator.record_read_error(&error);
             return Ok(0);
         }
     };
@@ -560,10 +550,7 @@ fn scan_directory_contents(
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
-                    accumulator
-                        .lock()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .record_read_error(&error);
+                    accumulator.record_read_error(&error);
                     return 0;
                 }
             };
