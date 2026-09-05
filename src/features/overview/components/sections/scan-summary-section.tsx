@@ -1,6 +1,7 @@
 import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
 import { ScanCategorySection } from "@/features/overview/components/sections/scan-category-section";
+import { ScanTreemapSection } from "@/features/overview/components/sections/scan-treemap-section";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
@@ -108,6 +109,8 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
           )}
         </SectionCard>
       )}
+
+      <ScanTreemapSection summary={summary} />
 
       <ScanCategorySection summary={summary} />
 

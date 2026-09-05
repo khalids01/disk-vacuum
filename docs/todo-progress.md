@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Implement bounded treemap summary**
+- Current phase: **Backend Phase 4 — Space Map**
+- Current task: **Add selected-node details to the Space Map**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -452,7 +452,7 @@ Only create when needed.
 - [x] Size aggregation
 - [x] File/folder counts
 - [x] Category classification
-- [ ] Bounded treemap summary
+- [x] Bounded treemap summary
 - [x] Full index kept in Rust
 - [x] Progress events throttled
 - [x] Cancellation
@@ -480,12 +480,12 @@ Only create when needed.
 
 # Backend Phase 4 — Space Map
 
-- [ ] Treemap summary query
-- [ ] Drill-down query
-- [ ] Category data
+- [x] Treemap summary query
+- [x] Drill-down query
+- [x] Category data
 - [ ] Selected node details
-- [ ] Wire real treemap
-- [ ] Ensure no full index crosses IPC
+- [x] Wire real treemap
+- [x] Ensure no full index crosses IPC
 - [ ] Large scan tested
 
 ---

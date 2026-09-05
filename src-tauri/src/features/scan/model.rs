@@ -133,6 +133,35 @@ pub struct CompletedScan {
     pub directories: HashMap<u64, ScanDirectoryRecord>,
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ScanTreemapNodeKind {
+    File,
+    Directory,
+    Group,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanTreemapNode {
+    pub id: Option<u64>,
+    pub name: String,
+    pub kind: ScanTreemapNodeKind,
+    pub size_bytes: u64,
+    pub category: ScanCategory,
+    pub grouped_item_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanTreemapSummary {
+    pub directory_id: u64,
+    pub parent_id: Option<u64>,
+    pub name: String,
+    pub total_items: usize,
+    pub nodes: Vec<ScanTreemapNode>,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {

@@ -23,8 +23,9 @@ use crate::{
         model::{
             CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
             ScanDirectoryPage, ScanDirectoryRecord, ScanNodeKind, ScanNodeSummary, ScanProgress,
-            ScanSummary,
+            ScanSummary, ScanTreemapSummary,
         },
+        treemap::build_treemap_summary,
     },
 };
 
@@ -352,6 +353,23 @@ pub fn get_scan_directory(
         .ok_or_else(|| "Complete a scan before browsing its folders.".to_owned())?;
 
     build_directory_page(completed_scan, directory_id, offset, limit)
+}
+
+#[tauri::command]
+pub fn get_scan_treemap(
+    directory_id: u64,
+    max_nodes: usize,
+    state: State<'_, AppState>,
+) -> Result<ScanTreemapSummary, String> {
+    let completed_scan = state
+        .completed_scan
+        .lock()
+        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+    let completed_scan = completed_scan
+        .as_ref()
+        .ok_or_else(|| "Complete a scan before viewing its space map.".to_owned())?;
+
+    build_treemap_summary(completed_scan, directory_id, max_nodes)
 }
 
 fn build_directory_page(
