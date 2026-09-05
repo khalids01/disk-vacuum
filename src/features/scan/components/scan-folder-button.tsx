@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpenIcon, LoaderCircleIcon } from "lucide-react";
+import { FolderOpenIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { scanDirectoryPath } from "@/features/scan/api/scan-api";
@@ -21,7 +21,7 @@ export function ScanFolderButton({
   const status = useScanStore((state) => state.status);
   const failScan = useScanStore((state) => state.failScan);
   const scanFolder = useScanMutation(scanDirectoryPath);
-  const isScanning =
+  const isScanActive =
     status === "scanning" || status === "cancelling" || scanFolder.isPending;
 
   async function chooseFolder() {
@@ -41,13 +41,9 @@ export function ScanFolderButton({
   }
 
   return (
-    <Button {...buttonProps} disabled={isScanning} onClick={chooseFolder}>
-      {isScanning ? (
-        <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
-      ) : (
-        <FolderOpenIcon data-icon="inline-start" />
-      )}
-      {isScanning ? "Scanning Folder" : children}
+    <Button {...buttonProps} disabled={isScanActive} onClick={chooseFolder}>
+      <FolderOpenIcon data-icon="inline-start" />
+      {children}
     </Button>
   );
 }

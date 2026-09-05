@@ -1,4 +1,4 @@
-import { HomeIcon, LoaderCircleIcon } from "lucide-react";
+import { HomeIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { scanHomeDirectory } from "@/features/scan/api/scan-api";
@@ -11,39 +11,25 @@ interface ScanHomeButtonProps
     "className" | "size" | "variant"
   > {
   children?: string;
-  compact?: boolean;
 }
 
 export function ScanHomeButton({
   children = "Scan Home",
-  compact = false,
   ...buttonProps
 }: ScanHomeButtonProps) {
   const status = useScanStore((state) => state.status);
   const scanHome = useScanMutation(scanHomeDirectory);
-  const isScanning =
+  const isScanActive =
     status === "scanning" || status === "cancelling" || scanHome.isPending;
 
   return (
     <Button
       {...buttonProps}
-      disabled={isScanning}
+      disabled={isScanActive}
       onClick={() => scanHome.mutate()}
     >
-      {isScanning ? (
-        <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
-      ) : (
-        <HomeIcon data-icon="inline-start" />
-      )}
-      {isScanning ? (
-        compact ? (
-          <span className="sr-only">Scanning Home</span>
-        ) : (
-          "Scanning Home"
-        )
-      ) : (
-        children
-      )}
+      <HomeIcon data-icon="inline-start" />
+      {children}
     </Button>
   );
 }
