@@ -23,6 +23,9 @@ impl ScanCommandError {
 pub struct ScanCapacity {
     pub total_space_bytes: u64,
     pub used_space_bytes: u64,
+    pub free_space_bytes: u64,
+    pub available_space_bytes: u64,
+    pub reserved_space_bytes: u64,
 }
 
 #[derive(Clone, Debug, Serialize)]

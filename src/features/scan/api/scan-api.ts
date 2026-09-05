@@ -15,6 +15,9 @@ export interface ScanCommandError {
 export interface ScanCapacity {
   totalSpaceBytes: number;
   usedSpaceBytes: number;
+  freeSpaceBytes: number;
+  availableSpaceBytes: number;
+  reservedSpaceBytes: number;
 }
 
 export interface ScanProgress {

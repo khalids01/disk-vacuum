@@ -77,12 +77,15 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
             />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            {formatBytes(
-              summary.capacity.totalSpaceBytes -
-                summary.capacity.usedSpaceBytes,
-            )}{" "}
-            available
+            {formatBytes(summary.capacity.freeSpaceBytes)} free
           </p>
+          {summary.capacity.reservedSpaceBytes > 0 && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {formatBytes(summary.capacity.availableSpaceBytes)} available to
+              this user · {formatBytes(summary.capacity.reservedSpaceBytes)}
+              reserved for the system
+            </p>
+          )}
           {accountedPercent !== null && (
             <div className="mt-4 border-t border-border pt-4">
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm">

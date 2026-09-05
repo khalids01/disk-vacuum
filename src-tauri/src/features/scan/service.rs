@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, State};
 use crate::{
     app_state::{ActiveScan, AppState},
     features::scan::{
+        capacity::scan_capacity,
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
             CompletedScan, ScanCapacity, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
@@ -481,10 +482,12 @@ fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
         ))?;
 
     let root = validate_scan_root(disk.mount_point())?;
-    let capacity = ScanCapacity {
-        total_space_bytes: disk.total_space(),
-        used_space_bytes: disk.total_space().saturating_sub(disk.available_space()),
-    };
+    let capacity = scan_capacity(
+        disk.mount_point(),
+        disk.total_space(),
+        disk.available_space(),
+    )
+    .map_err(ScanFailure::Message)?;
     Ok((root, capacity))
 }
 
@@ -812,6 +815,9 @@ mod tests {
             Some(ScanCapacity {
                 total_space_bytes: 100,
                 used_space_bytes: 75,
+                free_space_bytes: 25,
+                available_space_bytes: 20,
+                reserved_space_bytes: 5,
             }),
             Arc::new(AtomicBool::new(false)),
         )
@@ -831,6 +837,9 @@ mod tests {
             .expect("fixture capacity should be preserved");
         assert_eq!(capacity.total_space_bytes, 100);
         assert_eq!(capacity.used_space_bytes, 75);
+        assert_eq!(capacity.free_space_bytes, 25);
+        assert_eq!(capacity.available_space_bytes, 20);
+        assert_eq!(capacity.reserved_space_bytes, 5);
         assert_eq!(summary.file_count, 2);
         assert_eq!(summary.directory_count, 2);
         assert!(summary.top_level_items.len() <= 24);
