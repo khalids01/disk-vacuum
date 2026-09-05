@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Validate filesystem-boundary scan behavior on macOS and Linux**
+- Current task: **Implement scan category classification**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -444,7 +444,7 @@ Only create when needed.
 - [x] Home target
 - [ ] Drive/root target
 - [x] Custom folder target
-- [ ] Parallel filesystem walk
+- [x] Parallel filesystem walk
 - [x] Permission errors handled
 - [x] Symlink behavior defined
 - [x] Hard links considered

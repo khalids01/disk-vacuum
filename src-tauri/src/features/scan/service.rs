@@ -5,11 +5,12 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc,
+        Arc, Mutex,
     },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use rayon::{iter::ParallelBridge, prelude::ParallelIterator, ThreadPoolBuilder};
 use tauri::{AppHandle, Emitter, State};
 
 use crate::{
@@ -21,6 +22,7 @@ use crate::{
 };
 
 const MAX_TOP_LEVEL_ITEMS: usize = 24;
+const MAX_SCAN_WORKERS: usize = 8;
 const PROGRESS_EVENT_NAME: &str = "scan-progress";
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -360,37 +362,60 @@ fn scan_directory(
     let root_metadata = fs::metadata(root)
         .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
     let root_filesystem_id = filesystem_id(&root_metadata);
-    let mut accumulator =
-        ScanAccumulator::new(app_handle, cancellation, target_label, root_filesystem_id);
-    accumulator.check_cancelled()?;
-    accumulator.emit_progress(true);
+    let accumulator = Arc::new(Mutex::new(ScanAccumulator::new(
+        app_handle,
+        cancellation,
+        target_label,
+        root_filesystem_id,
+    )));
+    {
+        let mut accumulator = accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        accumulator.check_cancelled()?;
+        accumulator.emit_progress(true);
+    }
 
     let root_entries = fs::read_dir(root)
         .map_err(|_| ScanFailure::Message("The selected scan location could not be read."))?;
+    let worker_pool = ThreadPoolBuilder::new()
+        .num_threads(scan_worker_count())
+        .thread_name(|index| format!("disk-vacuum-scan-{index}"))
+        .build()
+        .map_err(|_| ScanFailure::Message("The scan worker pool could not be created."))?;
 
-    for entry in root_entries {
-        accumulator.check_cancelled()?;
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                accumulator.record_read_error(&error);
-                continue;
-            }
-        };
+    worker_pool.install(|| {
+        root_entries.par_bridge().for_each(|entry| {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    accumulator
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_read_error(&error);
+                    return;
+                }
+            };
 
-        let path = entry.path();
-        let Some(measured_entry) = scan_entry(&path, &mut accumulator)? else {
-            continue;
-        };
+            let Ok(Some(measured_entry)) = scan_entry(&entry.path(), &accumulator) else {
+                return;
+            };
 
-        accumulator.record_top_level_item(ScanNodeSummary {
-            id: format!("top-{}", accumulator.top_level_items.len()),
-            name: entry.file_name().to_string_lossy().into_owned(),
-            kind: measured_entry.kind,
-            size_bytes: measured_entry.size_bytes,
+            accumulator
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_top_level_item(ScanNodeSummary {
+                    id: String::new(),
+                    name: entry.file_name().to_string_lossy().into_owned(),
+                    kind: measured_entry.kind,
+                    size_bytes: measured_entry.size_bytes,
+                });
         });
-    }
+    });
 
+    let mut accumulator = accumulator
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
     accumulator
@@ -415,43 +440,73 @@ fn scan_directory(
         skipped_hard_link_count: accumulator.skipped_hard_link_count,
         skipped_mounted_filesystem_count: accumulator.skipped_mounted_filesystem_count,
         skipped_special_file_count: accumulator.skipped_special_file_count,
-        top_level_items: accumulator.top_level_items,
+        top_level_items: std::mem::take(&mut accumulator.top_level_items),
     })
 }
 
-fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<Option<MeasuredEntry>> {
-    accumulator.record_entry_visit()?;
+fn scan_worker_count() -> usize {
+    std::thread::available_parallelism()
+        .map(usize::from)
+        .unwrap_or(1)
+        .clamp(1, MAX_SCAN_WORKERS)
+}
+
+fn scan_entry(
+    path: &Path,
+    accumulator: &Arc<Mutex<ScanAccumulator>>,
+) -> ScanResult<Option<MeasuredEntry>> {
+    accumulator
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .record_entry_visit()?;
 
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => {
-            accumulator.record_read_error(&error);
+            accumulator
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_read_error(&error);
             return Ok(None);
         }
     };
 
     if metadata.file_type().is_symlink() {
-        accumulator.skipped_symlink_count += 1;
+        accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .skipped_symlink_count += 1;
         return Ok(None);
     }
 
-    if accumulator.root_filesystem_id.is_some()
-        && filesystem_id(&metadata) != accumulator.root_filesystem_id
-    {
-        accumulator.skipped_mounted_filesystem_count += 1;
+    let crosses_filesystem_boundary = {
+        let accumulator = accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        accumulator.root_filesystem_id.is_some()
+            && filesystem_id(&metadata) != accumulator.root_filesystem_id
+    };
+    if crosses_filesystem_boundary {
+        accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .skipped_mounted_filesystem_count += 1;
         return Ok(None);
     }
 
     if metadata.is_file() {
+        let mut accumulator = accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         accumulator.file_count += 1;
-        if let Some(identity) = hard_link_identity(&metadata) {
-            if !accumulator.seen_hard_links.insert(identity) {
-                accumulator.skipped_hard_link_count += 1;
-                return Ok(Some(MeasuredEntry {
-                    kind: ScanNodeKind::File,
-                    size_bytes: 0,
-                }));
-            }
+        if hard_link_identity(&metadata)
+            .is_some_and(|identity| !accumulator.seen_hard_links.insert(identity))
+        {
+            accumulator.skipped_hard_link_count += 1;
+            return Ok(Some(MeasuredEntry {
+                kind: ScanNodeKind::File,
+                size_bytes: 0,
+            }));
         }
         let size_bytes = metadata.len();
         accumulator.total_size_bytes = accumulator.total_size_bytes.saturating_add(size_bytes);
@@ -462,7 +517,10 @@ fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<Opti
     }
 
     if metadata.is_dir() {
-        accumulator.directory_count += 1;
+        accumulator
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .directory_count += 1;
         let size_bytes = scan_directory_contents(path, accumulator)?;
         return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::Directory,
@@ -470,35 +528,52 @@ fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<Opti
         }));
     }
 
-    accumulator.skipped_special_file_count += 1;
+    accumulator
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .skipped_special_file_count += 1;
     Ok(None)
 }
 
-fn scan_directory_contents(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<u64> {
-    accumulator.check_cancelled()?;
+fn scan_directory_contents(
+    path: &Path,
+    accumulator: &Arc<Mutex<ScanAccumulator>>,
+) -> ScanResult<u64> {
+    accumulator
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .check_cancelled()?;
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
-            accumulator.record_read_error(&error);
+            accumulator
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .record_read_error(&error);
             return Ok(0);
         }
     };
 
-    let mut directory_size = 0_u64;
-    for entry in entries {
-        accumulator.check_cancelled()?;
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                accumulator.record_read_error(&error);
-                continue;
-            }
-        };
+    let directory_size = entries
+        .par_bridge()
+        .map(|entry| {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(error) => {
+                    accumulator
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner())
+                        .record_read_error(&error);
+                    return 0;
+                }
+            };
 
-        if let Some(measured_entry) = scan_entry(&entry.path(), accumulator)? {
-            directory_size = directory_size.saturating_add(measured_entry.size_bytes);
-        }
-    }
+            scan_entry(&entry.path(), accumulator)
+                .ok()
+                .flatten()
+                .map_or(0, |measured_entry| measured_entry.size_bytes)
+        })
+        .sum();
 
     Ok(directory_size)
 }
