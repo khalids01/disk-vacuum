@@ -12,6 +12,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
+            features::scan::service::get_scan_directory,
             features::scan::service::scan_directory_path,
             features::scan::service::scan_home_directory,
             features::scan::service::scan_system_storage,

@@ -1,6 +1,6 @@
 use std::{
     cmp::Reverse,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     env, fs,
     path::{Path, PathBuf},
     sync::{
@@ -19,8 +19,8 @@ use crate::{
     features::scan::{
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            ScanCapacity, ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress,
-            ScanSummary,
+            CompletedScan, ScanCapacity, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
+            ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary,
         },
     },
 };
@@ -68,6 +68,8 @@ struct ScanAccumulator {
     skipped_mounted_filesystem_count: AtomicU64,
     skipped_special_file_count: AtomicU64,
     top_level_items: Mutex<Vec<ScanNodeSummary>>,
+    next_node_id: AtomicU64,
+    directories: Mutex<HashMap<u64, ScanDirectoryRecord>>,
 }
 
 impl ScanAccumulator {
@@ -100,6 +102,8 @@ impl ScanAccumulator {
             skipped_mounted_filesystem_count: AtomicU64::new(0),
             skipped_special_file_count: AtomicU64::new(0),
             top_level_items: Mutex::new(Vec::with_capacity(MAX_TOP_LEVEL_ITEMS)),
+            next_node_id: AtomicU64::new(1),
+            directories: Mutex::new(HashMap::new()),
         }
     }
 
@@ -185,14 +189,34 @@ impl ScanAccumulator {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         top_level_items.sort_by_key(|item| Reverse(item.size_bytes));
-        for (index, item) in top_level_items.iter_mut().enumerate() {
-            item.id = format!("top-{index}");
-        }
         std::mem::take(&mut *top_level_items)
+    }
+
+    fn next_node_id(&self) -> u64 {
+        self.next_node_id.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn record_directory(&self, mut directory: ScanDirectoryRecord) {
+        directory
+            .children
+            .sort_by_key(|item| Reverse(item.size_bytes));
+        self.directories
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(directory.id, directory);
+    }
+
+    fn take_directories(&self) -> HashMap<u64, ScanDirectoryRecord> {
+        let mut directories = self
+            .directories
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        std::mem::take(&mut *directories)
     }
 }
 
 struct MeasuredEntry {
+    id: u64,
     kind: ScanNodeKind,
     size_bytes: u64,
 }
@@ -277,8 +301,58 @@ pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary
     state
         .completed_scan
         .lock()
-        .map(|completed_scan| completed_scan.clone())
+        .map(|completed_scan| {
+            completed_scan
+                .as_ref()
+                .map(|completed_scan| completed_scan.summary.clone())
+        })
         .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())
+}
+
+#[tauri::command]
+pub fn get_scan_directory(
+    directory_id: u64,
+    offset: usize,
+    limit: usize,
+    state: State<'_, AppState>,
+) -> Result<ScanDirectoryPage, String> {
+    let completed_scan = state
+        .completed_scan
+        .lock()
+        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+    let completed_scan = completed_scan
+        .as_ref()
+        .ok_or_else(|| "Complete a scan before browsing its folders.".to_owned())?;
+
+    build_directory_page(completed_scan, directory_id, offset, limit)
+}
+
+fn build_directory_page(
+    completed_scan: &CompletedScan,
+    directory_id: u64,
+    offset: usize,
+    limit: usize,
+) -> Result<ScanDirectoryPage, String> {
+    const MAX_PAGE_SIZE: usize = 200;
+
+    let directory = completed_scan
+        .directories
+        .get(&directory_id)
+        .ok_or_else(|| "The scanned directory is no longer available.".to_owned())?;
+
+    let offset = offset.min(directory.children.len());
+    let end = offset
+        .saturating_add(limit.clamp(1, MAX_PAGE_SIZE))
+        .min(directory.children.len());
+
+    Ok(ScanDirectoryPage {
+        directory_id: directory.id,
+        parent_id: directory.parent_id,
+        name: directory.name.clone(),
+        total_items: directory.children.len(),
+        offset,
+        items: directory.children[offset..end].to_vec(),
+    })
 }
 
 fn begin_scan(state: &AppState) -> Result<ActiveScan, ScanCommandError> {
@@ -321,22 +395,23 @@ fn finish_active_scan(state: &AppState, scan_id: u64) -> Result<(), ScanCommandE
 
 fn store_completed_scan(
     state: &AppState,
-    summary: ScanSummary,
+    completed: CompletedScan,
 ) -> Result<ScanSummary, ScanCommandError> {
+    let summary = completed.summary.clone();
     let mut completed_scan = state.completed_scan.lock().map_err(|_| {
         ScanCommandError::new(
             "state_unavailable",
             "DiskVacuum could not update its scan state.",
         )
     })?;
-    *completed_scan = Some(summary.clone());
+    *completed_scan = Some(completed);
     Ok(summary)
 }
 
 fn scan_system_storage_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
-) -> ScanResult<ScanSummary> {
+) -> ScanResult<CompletedScan> {
     let (system_root, capacity) = resolve_system_storage()?;
     scan_directory(
         &system_root,
@@ -350,7 +425,7 @@ fn scan_system_storage_blocking(
 fn scan_home_directory_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
-) -> ScanResult<ScanSummary> {
+) -> ScanResult<CompletedScan> {
     let home_directory = resolve_home_directory()?;
     scan_directory(
         &home_directory,
@@ -365,7 +440,7 @@ fn scan_selected_directory_blocking(
     path: String,
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
-) -> ScanResult<ScanSummary> {
+) -> ScanResult<CompletedScan> {
     let selected_directory = validate_scan_root(Path::new(&path))?;
     let folder_name = selected_directory
         .file_name()
@@ -466,7 +541,9 @@ fn scan_directory(
     app_handle: Option<AppHandle>,
     capacity: Option<ScanCapacity>,
     cancellation: Arc<AtomicBool>,
-) -> ScanResult<ScanSummary> {
+) -> ScanResult<CompletedScan> {
+    const ROOT_DIRECTORY_ID: u64 = 0;
+
     let root_metadata = fs::metadata(root)
         .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
     let root_filesystem_id = filesystem_id(&root_metadata);
@@ -488,33 +565,44 @@ fn scan_directory(
         .build()
         .map_err(|_| ScanFailure::Message("The scan worker pool could not be created."))?;
 
-    worker_pool.install(|| {
-        root_entries.par_bridge().for_each(|entry| {
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(error) => {
-                    accumulator.record_read_error(&error);
-                    return;
-                }
-            };
+    let root_items = worker_pool.install(|| {
+        root_entries
+            .par_bridge()
+            .filter_map(|entry| {
+                let entry = match entry {
+                    Ok(entry) => entry,
+                    Err(error) => {
+                        accumulator.record_read_error(&error);
+                        return None;
+                    }
+                };
 
-            let Ok(Some(measured_entry)) = scan_entry(&entry.path(), &accumulator) else {
-                return;
-            };
-
-            accumulator.record_top_level_item(ScanNodeSummary {
-                id: String::new(),
-                name: entry.file_name().to_string_lossy().into_owned(),
-                kind: measured_entry.kind,
-                size_bytes: measured_entry.size_bytes,
-            });
-        });
+                scan_entry(&entry.path(), ROOT_DIRECTORY_ID, &accumulator)
+                    .ok()
+                    .flatten()
+                    .map(|measured_entry| ScanNodeSummary {
+                        id: measured_entry.id,
+                        name: entry.file_name().to_string_lossy().into_owned(),
+                        kind: measured_entry.kind,
+                        size_bytes: measured_entry.size_bytes,
+                    })
+            })
+            .collect::<Vec<_>>()
     });
 
     accumulator.check_cancelled()?;
+    for item in &root_items {
+        accumulator.record_top_level_item(item.clone());
+    }
+    accumulator.record_directory(ScanDirectoryRecord {
+        id: ROOT_DIRECTORY_ID,
+        parent_id: None,
+        name: target_label.to_owned(),
+        children: root_items,
+    });
     accumulator.emit_progress(true);
 
-    Ok(ScanSummary {
+    let summary = ScanSummary {
         target_label: target_label.to_owned(),
         completed_at_unix_seconds: SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -534,7 +622,13 @@ fn scan_directory(
         skipped_special_file_count: accumulator
             .skipped_special_file_count
             .load(Ordering::Relaxed),
+        root_directory_id: ROOT_DIRECTORY_ID,
         top_level_items: accumulator.take_top_level_items(),
+    };
+
+    Ok(CompletedScan {
+        summary,
+        directories: accumulator.take_directories(),
     })
 }
 
@@ -547,6 +641,7 @@ fn scan_worker_count() -> usize {
 
 fn scan_entry(
     path: &Path,
+    parent_id: u64,
     accumulator: &Arc<ScanAccumulator>,
 ) -> ScanResult<Option<MeasuredEntry>> {
     accumulator.record_entry_visit()?;
@@ -576,6 +671,7 @@ fn scan_entry(
     }
 
     if metadata.is_file() {
+        let node_id = accumulator.next_node_id();
         accumulator.file_count.fetch_add(1, Ordering::Relaxed);
         if hard_link_identity(&metadata).is_some_and(|identity| {
             !accumulator
@@ -588,6 +684,7 @@ fn scan_entry(
                 .skipped_hard_link_count
                 .fetch_add(1, Ordering::Relaxed);
             return Ok(Some(MeasuredEntry {
+                id: node_id,
                 kind: ScanNodeKind::File,
                 size_bytes: 0,
             }));
@@ -598,15 +695,27 @@ fn scan_entry(
             .total_size_bytes
             .fetch_add(size_bytes, Ordering::Relaxed);
         return Ok(Some(MeasuredEntry {
+            id: node_id,
             kind: ScanNodeKind::File,
             size_bytes,
         }));
     }
 
     if metadata.is_dir() {
+        let node_id = accumulator.next_node_id();
         accumulator.directory_count.fetch_add(1, Ordering::Relaxed);
-        let size_bytes = scan_directory_contents(path, accumulator)?;
+        let (size_bytes, children) = scan_directory_contents(path, node_id, accumulator)?;
+        accumulator.record_directory(ScanDirectoryRecord {
+            id: node_id,
+            parent_id: Some(parent_id),
+            name: path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+            children,
+        });
         return Ok(Some(MeasuredEntry {
+            id: node_id,
             kind: ScanNodeKind::Directory,
             size_bytes,
         }));
@@ -618,35 +727,47 @@ fn scan_entry(
     Ok(None)
 }
 
-fn scan_directory_contents(path: &Path, accumulator: &Arc<ScanAccumulator>) -> ScanResult<u64> {
+fn scan_directory_contents(
+    path: &Path,
+    directory_id: u64,
+    accumulator: &Arc<ScanAccumulator>,
+) -> ScanResult<(u64, Vec<ScanNodeSummary>)> {
     accumulator.check_cancelled()?;
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
             accumulator.record_read_error(&error);
-            return Ok(0);
+            return Ok((0, Vec::new()));
         }
     };
 
-    let directory_size = entries
+    let children = entries
         .par_bridge()
-        .map(|entry| {
+        .filter_map(|entry| {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(error) => {
                     accumulator.record_read_error(&error);
-                    return 0;
+                    return None;
                 }
             };
 
-            scan_entry(&entry.path(), accumulator)
+            scan_entry(&entry.path(), directory_id, accumulator)
                 .ok()
                 .flatten()
-                .map_or(0, |measured_entry| measured_entry.size_bytes)
+                .map(|measured_entry| ScanNodeSummary {
+                    id: measured_entry.id,
+                    name: entry.file_name().to_string_lossy().into_owned(),
+                    kind: measured_entry.kind,
+                    size_bytes: measured_entry.size_bytes,
+                })
         })
-        .sum();
+        .collect::<Vec<_>>();
+    let size_bytes = children
+        .iter()
+        .fold(0_u64, |total, child| total.saturating_add(child.size_bytes));
 
-    Ok(directory_size)
+    Ok((size_bytes, children))
 }
 
 #[cfg(test)]
@@ -661,7 +782,10 @@ mod tests {
         time::SystemTime,
     };
 
-    use super::{allocated_size, scan_directory, ScanCapacity, ScanFailure};
+    use super::{
+        allocated_size, build_directory_page, scan_directory, ScanCapacity, ScanFailure,
+        ScanNodeKind,
+    };
 
     fn unique_fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -681,7 +805,7 @@ mod tests {
         fs::write(fixture.join("nested").join("large.txt"), b"abcdefgh")
             .expect("fixture file should be written");
 
-        let summary = scan_directory(
+        let completed = scan_directory(
             &fixture,
             "Fixture",
             None,
@@ -692,6 +816,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )
         .expect("fixture scan should succeed");
+        let summary = &completed.summary;
 
         let expected_size = allocated_size(
             &fs::metadata(fixture.join("small.txt")).expect("small file metadata should exist"),
@@ -702,6 +827,7 @@ mod tests {
         assert_eq!(summary.total_size_bytes, expected_size);
         let capacity = summary
             .capacity
+            .as_ref()
             .expect("fixture capacity should be preserved");
         assert_eq!(capacity.total_space_bytes, 100);
         assert_eq!(capacity.used_space_bytes, 75);
@@ -712,6 +838,26 @@ mod tests {
             .top_level_items
             .iter()
             .all(|item| item.name != "large.txt"));
+        assert_eq!(completed.directories.len(), 2);
+        let root = completed
+            .directories
+            .get(&summary.root_directory_id)
+            .expect("root directory should be indexed");
+        assert_eq!(root.children.len(), 2);
+        let first_page = build_directory_page(&completed, summary.root_directory_id, 0, 1)
+            .expect("root page should be available");
+        assert_eq!(first_page.total_items, 2);
+        assert_eq!(first_page.items.len(), 1);
+        let nested = root
+            .children
+            .iter()
+            .find(|item| matches!(item.kind, ScanNodeKind::Directory))
+            .expect("nested directory should be indexed");
+        let nested_page = build_directory_page(&completed, nested.id, 0, 100)
+            .expect("nested page should be available");
+        assert_eq!(nested_page.parent_id, Some(summary.root_directory_id));
+        assert_eq!(nested_page.items.len(), 1);
+        assert_eq!(nested_page.items[0].name, "large.txt");
 
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }
@@ -726,7 +872,7 @@ mod tests {
         fs::hard_link(&original, fixture.join("linked.bin"))
             .expect("fixture hard link should be created");
 
-        let summary = scan_directory(
+        let completed = scan_directory(
             &fixture,
             "Fixture",
             None,
@@ -734,6 +880,7 @@ mod tests {
             Arc::new(AtomicBool::new(false)),
         )
         .expect("fixture scan should succeed");
+        let summary = &completed.summary;
 
         assert_eq!(summary.file_count, 2);
         assert_eq!(

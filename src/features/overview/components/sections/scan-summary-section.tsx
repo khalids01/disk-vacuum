@@ -26,6 +26,16 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
             100,
         )
       : null;
+  const accountedBytes = summary.capacity
+    ? Math.min(summary.totalSizeBytes, summary.capacity.usedSpaceBytes)
+    : 0;
+  const unaccountedBytes = summary.capacity
+    ? summary.capacity.usedSpaceBytes - accountedBytes
+    : 0;
+  const accountedPercent =
+    summary.capacity && summary.capacity.usedSpaceBytes > 0
+      ? (accountedBytes / summary.capacity.usedSpaceBytes) * 100
+      : null;
 
   return (
     <div className="space-y-5">
@@ -73,6 +83,25 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
             )}{" "}
             available
           </p>
+          {accountedPercent !== null && (
+            <div className="mt-4 border-t border-border pt-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-muted-foreground">
+                  Allocated file data indexed
+                </span>
+                <span className="font-mono font-medium">
+                  {formatBytes(accountedBytes)} · {Math.round(accountedPercent)}
+                  % of used space
+                </span>
+              </div>
+              {unaccountedBytes > 0 && (
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                  {formatBytes(unaccountedBytes)} remains filesystem-managed,
+                  reserved, mounted elsewhere, open-but-deleted, or unreadable.
+                </p>
+              )}
+            </div>
+          )}
         </SectionCard>
       )}
 

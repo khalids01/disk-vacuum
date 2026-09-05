@@ -25,8 +25,17 @@ export interface ScanProgress {
   capacity: ScanCapacity | null;
 }
 
+export interface ScanDirectoryPage {
+  directoryId: number;
+  parentId: number | null;
+  name: string;
+  totalItems: number;
+  offset: number;
+  items: ScanNodeSummary[];
+}
+
 export interface ScanNodeSummary {
-  id: string;
+  id: number;
   name: string;
   kind: ScanNodeKind;
   sizeBytes: number;
@@ -45,7 +54,16 @@ export interface ScanSummary {
   skippedHardLinkCount: number;
   skippedMountedFilesystemCount: number;
   skippedSpecialFileCount: number;
+  rootDirectoryId: number;
   topLevelItems: ScanNodeSummary[];
+}
+
+export function getScanDirectory(directoryId: number, offset = 0, limit = 200) {
+  return invoke<ScanDirectoryPage>("get_scan_directory", {
+    directoryId,
+    offset,
+    limit,
+  });
 }
 
 export function getCurrentScan() {

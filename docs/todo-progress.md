@@ -453,7 +453,7 @@ Only create when needed.
 - [x] File/folder counts
 - [ ] Category classification
 - [ ] Bounded treemap summary
-- [ ] Full index kept in Rust
+- [x] Full index kept in Rust
 - [x] Progress events throttled
 - [x] Cancellation
 - [x] Atomic completed-state replacement
@@ -467,13 +467,13 @@ Only create when needed.
 
 # Backend Phase 3 — Disk Explorer
 
-- [ ] Query current directory by ID/path
-- [ ] Sort largest first
-- [ ] Pagination/bounded output
-- [ ] Directory drill-down
-- [ ] Metadata
-- [ ] TypeScript query wrapper
-- [ ] Wire Explorer
+- [x] Query current directory by ID/path
+- [x] Sort largest first
+- [x] Pagination/bounded output
+- [x] Directory drill-down
+- [x] Metadata
+- [x] TypeScript query wrapper
+- [x] Wire Explorer
 - [ ] Large directory tested
 
 ---

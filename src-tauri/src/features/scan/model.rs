@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -36,13 +38,13 @@ pub struct ScanProgress {
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanNodeSummary {
-    pub id: String,
+    pub id: u64,
     pub name: String,
     pub kind: ScanNodeKind,
     pub size_bytes: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanNodeKind {
     File,
@@ -64,5 +66,29 @@ pub struct ScanSummary {
     pub skipped_hard_link_count: u64,
     pub skipped_mounted_filesystem_count: u64,
     pub skipped_special_file_count: u64,
+    pub root_directory_id: u64,
     pub top_level_items: Vec<ScanNodeSummary>,
+}
+
+pub struct ScanDirectoryRecord {
+    pub id: u64,
+    pub parent_id: Option<u64>,
+    pub name: String,
+    pub children: Vec<ScanNodeSummary>,
+}
+
+pub struct CompletedScan {
+    pub summary: ScanSummary,
+    pub directories: HashMap<u64, ScanDirectoryRecord>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanDirectoryPage {
+    pub directory_id: u64,
+    pub parent_id: Option<u64>,
+    pub name: String,
+    pub total_items: usize,
+    pub offset: usize,
+    pub items: Vec<ScanNodeSummary>,
 }

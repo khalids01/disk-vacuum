@@ -119,7 +119,7 @@ export function ScanProgressPanel() {
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-muted-foreground">
-              {percentLabel ? `${percentLabel} · ` : ""}
+              {percentLabel ? `${percentLabel} accounted · ` : ""}
               {(progress?.entriesVisited ?? 0).toLocaleString()} items inspected
               · {formatBytes(observedBytes)} observed
             </p>

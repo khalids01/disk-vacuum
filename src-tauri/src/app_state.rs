@@ -3,10 +3,10 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use crate::features::scan::model::ScanSummary;
+use crate::features::scan::model::CompletedScan;
 
 pub struct AppState {
-    pub completed_scan: Mutex<Option<ScanSummary>>,
+    pub completed_scan: Mutex<Option<CompletedScan>>,
     pub active_scan: Mutex<Option<ActiveScan>>,
     pub next_scan_id: AtomicU64,
 }
