@@ -16,7 +16,7 @@
 ## Current Status
 
 - Current phase: **Backend Phase 2 — Scan Engine**
-- Current task: **Validate real Home and selected-folder scans in Tauri**
+- Current task: **Validate scan cancellation in Tauri on macOS and Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -202,7 +202,7 @@ Only create when needed.
 - [x] Scanning
 - [x] Scan complete
 - [ ] Scan failed
-- [ ] Scan cancelled
+- [x] Scan cancelled
 - [ ] Permission-limited scan
 
 ## Treemap
@@ -455,7 +455,7 @@ Only create when needed.
 - [ ] Bounded treemap summary
 - [ ] Full index kept in Rust
 - [x] Progress events throttled
-- [ ] Cancellation
+- [x] Cancellation
 - [x] Atomic completed-state replacement
 - [x] Previous scan preserved on new-scan failure
 - [x] Frontend scan hook

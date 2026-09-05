@@ -21,7 +21,8 @@ export function ScanHomeButton({
 }: ScanHomeButtonProps) {
   const status = useScanStore((state) => state.status);
   const scanHome = useScanMutation(scanHomeDirectory);
-  const isScanning = status === "scanning" || scanHome.isPending;
+  const isScanning =
+    status === "scanning" || status === "cancelling" || scanHome.isPending;
 
   return (
     <Button

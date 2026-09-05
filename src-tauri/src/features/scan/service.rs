@@ -2,22 +2,46 @@ use std::{
     cmp::Reverse,
     env, fs,
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use tauri::{AppHandle, Emitter, State};
 
 use crate::{
-    app_state::AppState,
-    features::scan::model::{ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary},
+    app_state::{ActiveScan, AppState},
+    features::scan::model::{
+        ScanCommandError, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanSummary,
+    },
 };
 
 const MAX_TOP_LEVEL_ITEMS: usize = 24;
 const PROGRESS_EVENT_NAME: &str = "scan-progress";
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 
+type ScanResult<T> = Result<T, ScanFailure>;
+
+#[derive(Debug)]
+enum ScanFailure {
+    Cancelled,
+    Message(&'static str),
+}
+
+impl From<ScanFailure> for ScanCommandError {
+    fn from(error: ScanFailure) -> Self {
+        match error {
+            ScanFailure::Cancelled => Self::new("scan_cancelled", "The scan was cancelled."),
+            ScanFailure::Message(message) => Self::new("scan_failed", message),
+        }
+    }
+}
+
 struct ScanAccumulator {
     app_handle: Option<AppHandle>,
+    cancellation: Arc<AtomicBool>,
     target_label: String,
     started_at: Instant,
     last_progress_emit: Instant,
@@ -33,11 +57,16 @@ struct ScanAccumulator {
 }
 
 impl ScanAccumulator {
-    fn new(app_handle: Option<AppHandle>, target_label: &str) -> Self {
+    fn new(
+        app_handle: Option<AppHandle>,
+        cancellation: Arc<AtomicBool>,
+        target_label: &str,
+    ) -> Self {
         let started_at = Instant::now();
 
         Self {
             app_handle,
+            cancellation,
             target_label: target_label.to_owned(),
             started_at,
             last_progress_emit: started_at,
@@ -53,9 +82,19 @@ impl ScanAccumulator {
         }
     }
 
-    fn record_entry_visit(&mut self) {
+    fn check_cancelled(&self) -> ScanResult<()> {
+        if self.cancellation.load(Ordering::Relaxed) {
+            return Err(ScanFailure::Cancelled);
+        }
+
+        Ok(())
+    }
+
+    fn record_entry_visit(&mut self) -> ScanResult<()> {
+        self.check_cancelled()?;
         self.entries_visited += 1;
         self.emit_progress(false);
+        Ok(())
     }
 
     fn emit_progress(&mut self, force: bool) {
@@ -115,19 +154,19 @@ struct MeasuredEntry {
 pub async fn scan_home_directory(
     app_handle: AppHandle,
     state: State<'_, AppState>,
-) -> Result<ScanSummary, String> {
-    let summary =
-        tauri::async_runtime::spawn_blocking(move || scan_home_directory_blocking(app_handle))
-            .await
-            .map_err(|_| "The home scan could not finish.".to_owned())??;
+) -> Result<ScanSummary, ScanCommandError> {
+    let active_scan = begin_scan(&state)?;
+    let cancellation = active_scan.cancellation.clone();
+    let task_result = tauri::async_runtime::spawn_blocking(move || {
+        scan_home_directory_blocking(app_handle, cancellation)
+    })
+    .await;
 
-    let mut completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not update its scan state.".to_owned())?;
-    *completed_scan = Some(summary.clone());
-
-    Ok(summary)
+    finish_active_scan(&state, active_scan.id)?;
+    let summary = task_result
+        .map_err(|_| ScanCommandError::new("scan_failed", "The home scan could not finish."))?
+        .map_err(ScanCommandError::from)?;
+    store_completed_scan(&state, summary)
 }
 
 #[tauri::command]
@@ -135,20 +174,36 @@ pub async fn scan_directory_path(
     path: String,
     app_handle: AppHandle,
     state: State<'_, AppState>,
-) -> Result<ScanSummary, String> {
-    let summary = tauri::async_runtime::spawn_blocking(move || {
-        scan_selected_directory_blocking(path, app_handle)
+) -> Result<ScanSummary, ScanCommandError> {
+    let active_scan = begin_scan(&state)?;
+    let cancellation = active_scan.cancellation.clone();
+    let task_result = tauri::async_runtime::spawn_blocking(move || {
+        scan_selected_directory_blocking(path, app_handle, cancellation)
     })
-    .await
-    .map_err(|_| "The folder scan could not finish.".to_owned())??;
+    .await;
 
-    let mut completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not update its scan state.".to_owned())?;
-    *completed_scan = Some(summary.clone());
+    finish_active_scan(&state, active_scan.id)?;
+    let summary = task_result
+        .map_err(|_| ScanCommandError::new("scan_failed", "The folder scan could not finish."))?
+        .map_err(ScanCommandError::from)?;
+    store_completed_scan(&state, summary)
+}
 
-    Ok(summary)
+#[tauri::command]
+pub fn cancel_scan(state: State<'_, AppState>) -> Result<bool, ScanCommandError> {
+    let active_scan = state.active_scan.lock().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not read its scan state.",
+        )
+    })?;
+
+    let Some(active_scan) = active_scan.as_ref() else {
+        return Ok(false);
+    };
+
+    active_scan.cancellation.store(true, Ordering::Relaxed);
+    Ok(true)
 }
 
 #[tauri::command]
@@ -160,15 +215,76 @@ pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary
         .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())
 }
 
-fn scan_home_directory_blocking(app_handle: AppHandle) -> Result<ScanSummary, String> {
+fn begin_scan(state: &AppState) -> Result<ActiveScan, ScanCommandError> {
+    let mut active_scan = state.active_scan.lock().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not update its scan state.",
+        )
+    })?;
+
+    if active_scan.is_some() {
+        return Err(ScanCommandError::new(
+            "scan_already_running",
+            "Another scan is already running.",
+        ));
+    }
+
+    let scan = ActiveScan {
+        id: state.next_scan_id.fetch_add(1, Ordering::Relaxed),
+        cancellation: Arc::new(AtomicBool::new(false)),
+    };
+    *active_scan = Some(scan.clone());
+    Ok(scan)
+}
+
+fn finish_active_scan(state: &AppState, scan_id: u64) -> Result<(), ScanCommandError> {
+    let mut active_scan = state.active_scan.lock().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not update its scan state.",
+        )
+    })?;
+
+    if active_scan.as_ref().is_some_and(|scan| scan.id == scan_id) {
+        *active_scan = None;
+    }
+
+    Ok(())
+}
+
+fn store_completed_scan(
+    state: &AppState,
+    summary: ScanSummary,
+) -> Result<ScanSummary, ScanCommandError> {
+    let mut completed_scan = state.completed_scan.lock().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not update its scan state.",
+        )
+    })?;
+    *completed_scan = Some(summary.clone());
+    Ok(summary)
+}
+
+fn scan_home_directory_blocking(
+    app_handle: AppHandle,
+    cancellation: Arc<AtomicBool>,
+) -> ScanResult<ScanSummary> {
     let home_directory = resolve_home_directory()?;
-    scan_directory(&home_directory, "Home directory", Some(app_handle))
+    scan_directory(
+        &home_directory,
+        "Home directory",
+        Some(app_handle),
+        cancellation,
+    )
 }
 
 fn scan_selected_directory_blocking(
     path: String,
     app_handle: AppHandle,
-) -> Result<ScanSummary, String> {
+    cancellation: Arc<AtomicBool>,
+) -> ScanResult<ScanSummary> {
     let selected_directory = validate_scan_root(Path::new(&path))?;
     let folder_name = selected_directory
         .file_name()
@@ -176,10 +292,15 @@ fn scan_selected_directory_blocking(
         .unwrap_or("Selected folder");
     let target_label = format!("Selected folder: {folder_name}");
 
-    scan_directory(&selected_directory, &target_label, Some(app_handle))
+    scan_directory(
+        &selected_directory,
+        &target_label,
+        Some(app_handle),
+        cancellation,
+    )
 }
 
-fn resolve_home_directory() -> Result<PathBuf, String> {
+fn resolve_home_directory() -> ScanResult<PathBuf> {
     let home_directory = if cfg!(windows) {
         env::var_os("USERPROFILE").map(PathBuf::from).or_else(|| {
             let drive = env::var_os("HOMEDRIVE")?;
@@ -190,27 +311,30 @@ fn resolve_home_directory() -> Result<PathBuf, String> {
         env::var_os("HOME").map(PathBuf::from)
     };
 
-    let home_directory =
-        home_directory.ok_or_else(|| "Your home directory could not be located.".to_owned())?;
+    let home_directory = home_directory.ok_or(ScanFailure::Message(
+        "Your home directory could not be located.",
+    ))?;
     validate_scan_root(&home_directory)
 }
 
-fn validate_scan_root(path: &Path) -> Result<PathBuf, String> {
+fn validate_scan_root(path: &Path) -> ScanResult<PathBuf> {
     let canonical_path = path
         .canonicalize()
-        .map_err(|_| "The selected scan location is unavailable.".to_owned())?;
+        .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
     let metadata = fs::metadata(&canonical_path)
-        .map_err(|_| "The selected scan location is unavailable.".to_owned())?;
+        .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
 
     if !metadata.is_dir() {
-        return Err("The selected scan location must be a directory.".to_owned());
+        return Err(ScanFailure::Message(
+            "The selected scan location must be a directory.",
+        ));
     }
 
     fs::read_dir(&canonical_path).map_err(|error| match error.kind() {
         std::io::ErrorKind::PermissionDenied => {
-            "DiskVacuum does not have permission to inspect that location.".to_owned()
+            ScanFailure::Message("DiskVacuum does not have permission to inspect that location.")
         }
-        _ => "The selected scan location could not be read.".to_owned(),
+        _ => ScanFailure::Message("The selected scan location could not be read."),
     })?;
 
     Ok(canonical_path)
@@ -220,14 +344,17 @@ fn scan_directory(
     root: &Path,
     target_label: &str,
     app_handle: Option<AppHandle>,
-) -> Result<ScanSummary, String> {
-    let mut accumulator = ScanAccumulator::new(app_handle, target_label);
+    cancellation: Arc<AtomicBool>,
+) -> ScanResult<ScanSummary> {
+    let mut accumulator = ScanAccumulator::new(app_handle, cancellation, target_label);
+    accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
 
     let root_entries = fs::read_dir(root)
-        .map_err(|_| "The selected scan location could not be read.".to_owned())?;
+        .map_err(|_| ScanFailure::Message("The selected scan location could not be read."))?;
 
     for entry in root_entries {
+        accumulator.check_cancelled()?;
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
@@ -237,7 +364,7 @@ fn scan_directory(
         };
 
         let path = entry.path();
-        let Some(measured_entry) = scan_entry(&path, &mut accumulator) else {
+        let Some(measured_entry) = scan_entry(&path, &mut accumulator)? else {
             continue;
         };
 
@@ -249,6 +376,7 @@ fn scan_directory(
         });
     }
 
+    accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
     accumulator
         .top_level_items
@@ -274,56 +402,58 @@ fn scan_directory(
     })
 }
 
-fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> Option<MeasuredEntry> {
-    accumulator.record_entry_visit();
+fn scan_entry(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<Option<MeasuredEntry>> {
+    accumulator.record_entry_visit()?;
 
     let metadata = match fs::symlink_metadata(path) {
         Ok(metadata) => metadata,
         Err(error) => {
             accumulator.record_read_error(&error);
-            return None;
+            return Ok(None);
         }
     };
 
     if metadata.file_type().is_symlink() {
         accumulator.skipped_symlink_count += 1;
-        return None;
+        return Ok(None);
     }
 
     if metadata.is_file() {
         let size_bytes = metadata.len();
         accumulator.file_count += 1;
         accumulator.total_size_bytes = accumulator.total_size_bytes.saturating_add(size_bytes);
-        return Some(MeasuredEntry {
+        return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::File,
             size_bytes,
-        });
+        }));
     }
 
     if metadata.is_dir() {
         accumulator.directory_count += 1;
-        let size_bytes = scan_directory_contents(path, accumulator);
-        return Some(MeasuredEntry {
+        let size_bytes = scan_directory_contents(path, accumulator)?;
+        return Ok(Some(MeasuredEntry {
             kind: ScanNodeKind::Directory,
             size_bytes,
-        });
+        }));
     }
 
     accumulator.skipped_special_file_count += 1;
-    None
+    Ok(None)
 }
 
-fn scan_directory_contents(path: &Path, accumulator: &mut ScanAccumulator) -> u64 {
+fn scan_directory_contents(path: &Path, accumulator: &mut ScanAccumulator) -> ScanResult<u64> {
+    accumulator.check_cancelled()?;
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(error) => {
             accumulator.record_read_error(&error);
-            return 0;
+            return Ok(0);
         }
     };
 
     let mut directory_size = 0_u64;
     for entry in entries {
+        accumulator.check_cancelled()?;
         let entry = match entry {
             Ok(entry) => entry,
             Err(error) => {
@@ -332,36 +462,49 @@ fn scan_directory_contents(path: &Path, accumulator: &mut ScanAccumulator) -> u6
             }
         };
 
-        if let Some(measured_entry) = scan_entry(&entry.path(), accumulator) {
+        if let Some(measured_entry) = scan_entry(&entry.path(), accumulator)? {
             directory_size = directory_size.saturating_add(measured_entry.size_bytes);
         }
     }
 
-    directory_size
+    Ok(directory_size)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, time::SystemTime};
+    use std::{
+        fs,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        time::SystemTime,
+    };
 
-    use super::scan_directory;
+    use super::{scan_directory, ScanFailure};
 
-    #[test]
-    fn summarizes_files_without_exposing_a_recursive_tree() {
-        let fixture = std::env::temp_dir().join(format!(
-            "disk-vacuum-scan-test-{}",
+    fn unique_fixture_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "disk-vacuum-{name}-{}",
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .expect("system clock should be after epoch")
                 .as_nanos()
-        ));
+        ))
+    }
+
+    use std::path::PathBuf;
+
+    #[test]
+    fn summarizes_files_without_exposing_a_recursive_tree() {
+        let fixture = unique_fixture_path("scan-test");
         fs::create_dir_all(fixture.join("nested")).expect("fixture directory should be created");
         fs::write(fixture.join("small.txt"), b"abc").expect("fixture file should be written");
         fs::write(fixture.join("nested").join("large.txt"), b"abcdefgh")
             .expect("fixture file should be written");
 
-        let summary =
-            scan_directory(&fixture, "Fixture", None).expect("fixture scan should succeed");
+        let summary = scan_directory(&fixture, "Fixture", None, Arc::new(AtomicBool::new(false)))
+            .expect("fixture scan should succeed");
 
         assert_eq!(summary.total_size_bytes, 11);
         assert_eq!(summary.file_count, 2);
@@ -372,6 +515,19 @@ mod tests {
             .iter()
             .all(|item| item.name != "large.txt"));
 
+        fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
+    }
+
+    #[test]
+    fn stops_before_traversal_when_cancellation_is_requested() {
+        let fixture = unique_fixture_path("cancel-test");
+        fs::create_dir_all(&fixture).expect("fixture directory should be created");
+        let cancellation = Arc::new(AtomicBool::new(false));
+        cancellation.store(true, Ordering::Relaxed);
+
+        let result = scan_directory(&fixture, "Fixture", None, cancellation);
+
+        assert!(matches!(result, Err(ScanFailure::Cancelled)));
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }
 }

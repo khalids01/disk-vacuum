@@ -13,6 +13,9 @@ import { useScanStore } from "@/stores/scan-store";
 export function NoScanSection() {
   const errorMessage = useScanStore((state) => state.errorMessage);
   const scanStatus = useScanStore((state) => state.status);
+  const showScanStatus = ["scanning", "cancelling", "cancelled"].includes(
+    scanStatus,
+  );
 
   return (
     <SectionCard className="overflow-hidden">
@@ -57,7 +60,7 @@ export function NoScanSection() {
           </p>
         </div>
       </div>
-      {scanStatus === "scanning" && (
+      {showScanStatus && (
         <div className="border-t border-border p-5 sm:px-7 lg:px-8">
           <ScanProgressPanel />
         </div>

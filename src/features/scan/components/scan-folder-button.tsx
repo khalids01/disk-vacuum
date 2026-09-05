@@ -21,7 +21,8 @@ export function ScanFolderButton({
   const status = useScanStore((state) => state.status);
   const failScan = useScanStore((state) => state.failScan);
   const scanFolder = useScanMutation(scanDirectoryPath);
-  const isScanning = status === "scanning" || scanFolder.isPending;
+  const isScanning =
+    status === "scanning" || status === "cancelling" || scanFolder.isPending;
 
   async function chooseFolder() {
     try {

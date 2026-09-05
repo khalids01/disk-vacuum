@@ -1,5 +1,21 @@
 use serde::Serialize;
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanCommandError {
+    pub code: String,
+    pub message: String,
+}
+
+impl ScanCommandError {
+    pub fn new(code: &str, message: &str) -> Self {
+        Self {
+            code: code.to_owned(),
+            message: message.to_owned(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
