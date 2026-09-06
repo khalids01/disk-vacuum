@@ -1,80 +1,85 @@
-#[cfg(test)]
-use crate::features::scan::model::CompletedScan;
 use crate::features::scan::model::{
     LargeFileItem, LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanCategory,
-    ScanDirectoryPage, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanSearchResponse,
-    ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind, ScanTreemapSummary,
+    ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
+    ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
+    ScanTreemapSummary,
 };
-use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension, Row};
+use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Ordering,
+    fs::{self, File},
+    io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, SyncSender},
+    sync::{
+        mpsc::{self, SyncSender},
+        Arc, RwLock,
+    },
     thread::{self, JoinHandle},
-    time::Instant,
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
-const SCHEMA_VERSION: i64 = 2;
-const DATABASE_FILE_NAME: &str = "disk-vacuum.sqlite3";
-const MAX_PAGE_SIZE: usize = 200;
-const SCAN_WRITE_QUEUE_SIZE: usize = 64;
-const NODE_BATCH_SIZE: usize = 512;
-const DATABASE_INSERT_BATCH_SIZE: usize = 256;
+const ROOT: &str = "scan-index-v1";
+const BLOCKS: &str = "blocks.bin";
+const LOOKUP: &str = "directories.bin";
+const META: &str = "metadata.json";
+const PARENT_NONE: u64 = u64::MAX;
+const QUEUE: usize = 1;
+const MAX_PAGE: usize = 200;
 
-enum ScanWriteMessage {
-    NodeBatch {
-        parent_id: u64,
-        nodes: Vec<ScanNodeSummary>,
-    },
+#[derive(Serialize, Deserialize)]
+struct Metadata {
+    version: u32,
+    root_path: PathBuf,
+    summary: ScanSummary,
+}
+enum Message {
+    Directory(ScanDirectoryRecord),
     Complete {
         root_path: PathBuf,
         summary: ScanSummary,
     },
 }
 
-pub struct ScanWriteSession {
-    sender: Option<SyncSender<ScanWriteMessage>>,
-    worker: Option<JoinHandle<Result<(), String>>>,
+#[derive(Clone, Debug)]
+pub struct ScanRepository {
+    root: PathBuf,
+    active: Arc<RwLock<Option<PathBuf>>>,
 }
-
+pub struct ScanWriteSession {
+    sender: Option<SyncSender<Message>>,
+    worker: Option<JoinHandle<Result<PathBuf, String>>>,
+    active: Arc<RwLock<Option<PathBuf>>>,
+}
 impl ScanWriteSession {
-    pub fn write_directory(
-        &self,
-        directory: crate::features::scan::model::ScanDirectoryRecord,
-    ) -> Result<(), String> {
-        let sender = self
-            .sender
+    pub fn write_directory(&self, mut directory: ScanDirectoryRecord) -> Result<(), String> {
+        directory
+            .children
+            .sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes).then(a.id.cmp(&b.id)));
+        self.sender
             .as_ref()
-            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?;
-        let parent_id = directory.id;
-        let mut nodes = directory.children.into_iter();
-        loop {
-            let batch = nodes.by_ref().take(NODE_BATCH_SIZE).collect::<Vec<_>>();
-            if batch.is_empty() {
-                return Ok(());
-            }
-            sender
-                .send(ScanWriteMessage::NodeBatch {
-                    parent_id,
-                    nodes: batch,
-                })
-                .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())?;
-        }
+            .ok_or("Index writer finished.")?
+            .send(Message::Directory(directory))
+            .map_err(|_| "The binary index writer stopped unexpectedly.".into())
     }
-
     pub fn finish(mut self, root_path: PathBuf, summary: ScanSummary) -> Result<(), String> {
         self.sender
             .take()
-            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?
-            .send(ScanWriteMessage::Complete { root_path, summary })
-            .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())?;
-        self.worker
+            .ok_or("Index writer finished.")?
+            .send(Message::Complete { root_path, summary })
+            .map_err(|_| "The binary index writer stopped unexpectedly.".to_owned())?;
+        let path = self
+            .worker
             .take()
-            .ok_or_else(|| "The scan index writer has already stopped.".to_owned())?
+            .ok_or("Index writer stopped.")?
             .join()
-            .map_err(|_| "The scan index writer crashed.".to_owned())?
+            .map_err(|_| "The binary index writer crashed.".to_owned())??;
+        *self
+            .active
+            .write()
+            .map_err(|_| "Index state unavailable.")? = Some(path);
+        Ok(())
     }
 }
-
 impl Drop for ScanWriteSession {
     fn drop(&mut self) {
         self.sender.take();
@@ -84,637 +89,554 @@ impl Drop for ScanWriteSession {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ScanRepository {
-    database_path: PathBuf,
-}
 impl ScanRepository {
     pub fn open(app_data_dir: &Path) -> Result<Self, String> {
-        std::fs::create_dir_all(app_data_dir)
-            .map_err(|e| format!("Could not create the app data directory: {e}"))?;
-        let repository = Self {
-            database_path: app_data_dir.join(DATABASE_FILE_NAME),
-        };
-        let connection = repository.connect()?;
-        migrate(&connection)?;
-        Ok(repository)
-    }
-    #[cfg(test)]
-    pub fn save_completed_scan(&self, scan: &CompletedScan) -> Result<(), String> {
-        let mut connection = self.connect()?;
-        let transaction = connection.transaction().map_err(db_error)?;
-        let summary_json = serde_json::to_string(&scan.summary)
-            .map_err(|e| format!("Could not encode the scan summary: {e}"))?;
-        transaction
-            .execute_batch("DROP INDEX IF EXISTS nodes_parent_size; DROP INDEX IF EXISTS nodes_file_size; DROP INDEX IF EXISTS nodes_category_size; DROP INDEX IF EXISTS nodes_modified;")
-            .map_err(db_error)?;
-        transaction
-            .execute("DELETE FROM nodes", [])
-            .map_err(db_error)?;
-        transaction
-            .execute("DELETE FROM completed_scan", [])
-            .map_err(db_error)?;
-        transaction
-            .execute(
-                "INSERT INTO completed_scan (id, root_path, summary_json) VALUES (1, ?1, ?2)",
-                params![scan.root_path.to_string_lossy(), summary_json],
-            )
-            .map_err(db_error)?;
-        {
-            let mut statement = transaction.prepare_cached("INSERT INTO nodes (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(db_error)?;
-            statement
-                .execute(params![
-                    to_i64(scan.summary.root_directory_id),
-                    Option::<i64>::None,
-                    scan.summary.target_label,
-                    1_i64,
-                    to_i64(scan.summary.total_size_bytes),
-                    category_value(ScanCategory::Other),
-                    Option::<i64>::None
-                ])
-                .map_err(db_error)?;
-            for directory in scan.directories.values() {
-                for node in &directory.children {
-                    statement
-                        .execute(params![
-                            to_i64(node.id),
-                            to_i64(directory.id),
-                            node.name,
-                            kind_value(node.kind),
-                            to_i64(node.size_bytes),
-                            category_value(node.category),
-                            node.modified_at_unix_seconds.map(to_i64)
-                        ])
-                        .map_err(db_error)?;
-                }
+        let root = app_data_dir.join(ROOT);
+        fs::create_dir_all(&root).map_err(ioe)?;
+        for e in fs::read_dir(&root).map_err(ioe)?.flatten() {
+            if e.file_name().to_string_lossy().starts_with(".building-") {
+                let _ = fs::remove_dir_all(e.path());
             }
         }
-        transaction.execute_batch("CREATE INDEX nodes_parent_size ON nodes(parent_id,size_bytes DESC); CREATE INDEX nodes_file_size ON nodes(size_bytes DESC) WHERE kind=0; CREATE INDEX nodes_category_size ON nodes(category,size_bytes DESC) WHERE kind=0; CREATE INDEX nodes_modified ON nodes(modified_at) WHERE kind=0;").map_err(db_error)?;
-        transaction.commit().map_err(db_error)?;
-        connection
-            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA optimize;")
-            .map_err(db_error)?;
-        Ok(())
+        let active = generations(&root)?.pop();
+        Ok(Self {
+            root,
+            active: Arc::new(RwLock::new(active)),
+        })
     }
     pub fn begin_scan_write(&self) -> Result<ScanWriteSession, String> {
-        let (sender, receiver) = mpsc::sync_channel(SCAN_WRITE_QUEUE_SIZE);
-        let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
-        let database_path = self.database_path.clone();
+        let id = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|e| e.to_string())?
+            .as_nanos();
+        let building = self.root.join(format!(".building-{id}"));
+        let completed = self.root.join(format!("generation-{id}"));
+        fs::create_dir(&building).map_err(ioe)?;
+        let (sender, receiver) = mpsc::sync_channel(QUEUE);
+        let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         let worker = thread::Builder::new()
-            .name("disk-vacuum-index-writer".into())
-            .spawn(move || stream_scan_to_database(&database_path, receiver, ready_sender))
-            .map_err(|e| format!("Could not start the scan index writer: {e}"))?;
-        ready_receiver
+            .name("disk-vacuum-binary-writer".into())
+            .spawn(move || {
+                let result = write_generation(&building, &completed, receiver, ready_tx);
+                if result.is_err() {
+                    let _ = fs::remove_dir_all(&building);
+                }
+                result
+            })
+            .map_err(|e| e.to_string())?;
+        ready_rx
             .recv()
-            .map_err(|_| "The scan index writer stopped during startup.".to_owned())??;
+            .map_err(|_| "Binary writer failed to start.".to_owned())??;
         Ok(ScanWriteSession {
             sender: Some(sender),
             worker: Some(worker),
+            active: self.active.clone(),
         })
     }
+    fn generation(&self) -> Result<PathBuf, String> {
+        self.active
+            .read()
+            .map_err(|_| "Index state unavailable.".to_owned())?
+            .clone()
+            .ok_or_else(|| "No completed scan is available.".into())
+    }
+    fn metadata(&self) -> Result<Metadata, String> {
+        let bytes = fs::read(self.generation()?.join(META)).map_err(ioe)?;
+        serde_json::from_slice(&bytes).map_err(|e| format!("Invalid scan metadata: {e}"))
+    }
     pub fn load_scan_summary(&self) -> Result<Option<ScanSummary>, String> {
-        let connection = self.connect()?;
-        connection
-            .query_row(
-                "SELECT summary_json FROM completed_scan WHERE id=1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()
-            .map_err(db_error)?
-            .map(|json| {
-                serde_json::from_str(&json)
-                    .map_err(|e| format!("Could not decode the saved scan summary: {e}"))
-            })
-            .transpose()
+        match self.metadata() {
+            Ok(m) => Ok(Some(m.summary)),
+            Err(e) if e == "No completed scan is available." => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+    fn block(&self, id: u64) -> Result<Directory, String> {
+        let gen = self.generation()?;
+        let mut idx = File::open(gen.join(LOOKUP)).map_err(ioe)?;
+        let count = idx.metadata().map_err(ioe)?.len() / 16;
+        let mut lo = 0;
+        let mut hi = count;
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            idx.seek(SeekFrom::Start(mid * 16)).map_err(ioe)?;
+            let found = read_u64(&mut idx)?;
+            let off = read_u64(&mut idx)?;
+            match found.cmp(&id) {
+                Ordering::Less => lo = mid + 1,
+                Ordering::Greater => hi = mid,
+                Ordering::Equal => {
+                    let mut f = BufReader::new(File::open(gen.join(BLOCKS)).map_err(ioe)?);
+                    f.seek(SeekFrom::Start(off)).map_err(ioe)?;
+                    return read_directory(&mut f);
+                }
+            }
+        }
+        Err("The scanned directory is no longer available.".into())
     }
     pub fn directory(
         &self,
-        directory_id: u64,
+        id: u64,
         offset: usize,
         limit: usize,
     ) -> Result<ScanDirectoryPage, String> {
-        let connection = self.connect()?;
-        let (parent_id, name, kind) = identity(&connection, directory_id)?;
-        if kind != ScanNodeKind::Directory {
-            return Err("The selected item is not a directory.".into());
-        }
-        let total_items = count_children(&connection, directory_id)?;
-        let offset = offset.min(total_items);
-        let mut statement = connection.prepare("SELECT id,name,kind,size_bytes,category,modified_at FROM nodes WHERE parent_id=?1 ORDER BY size_bytes DESC,id LIMIT ?2 OFFSET ?3").map_err(db_error)?;
-        let items = statement
-            .query_map(
-                params![
-                    to_i64(directory_id),
-                    limit.clamp(1, MAX_PAGE_SIZE) as i64,
-                    offset as i64
-                ],
-                node_from_row,
-            )
-            .map_err(db_error)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(db_error)?;
+        let d = self.block(id)?;
+        let total = d.children.len();
+        let offset = offset.min(total);
         Ok(ScanDirectoryPage {
-            directory_id,
-            parent_id,
-            name,
-            total_items,
+            directory_id: id,
+            parent_id: d.parent_id,
+            name: d.name,
+            total_items: total,
             offset,
-            items,
+            items: d
+                .children
+                .into_iter()
+                .skip(offset)
+                .take(limit.clamp(1, MAX_PAGE))
+                .collect(),
         })
     }
-    pub fn node_details(&self, directory_id: u64, node_id: u64) -> Result<ScanNodeDetails, String> {
-        let connection = self.connect()?;
-        let node = connection.query_row("SELECT id,name,kind,size_bytes,category,modified_at FROM nodes WHERE id=?1 AND parent_id=?2", params![to_i64(node_id),to_i64(directory_id)], node_from_row).optional().map_err(db_error)?.ok_or_else(|| "The selected scanned item is no longer available.".to_owned())?;
-        let child_count = if node.kind == ScanNodeKind::Directory {
-            count_children(&connection, node.id)?
-        } else {
-            0
-        };
-        let path = build_path(&connection, directory_id, &node.name)?;
-        Ok(ScanNodeDetails {
-            id: node.id,
-            parent_directory_id: directory_id,
-            name: node.name,
-            kind: node.kind,
-            size_bytes: node.size_bytes,
-            category: node.category,
-            path,
-            child_count,
-            modified_at_unix_seconds: node.modified_at_unix_seconds,
-        })
-    }
-    pub fn treemap(
-        &self,
-        directory_id: u64,
-        requested_max_nodes: usize,
-    ) -> Result<ScanTreemapSummary, String> {
-        let connection = self.connect()?;
-        let (parent_id, name, kind) = identity(&connection, directory_id)?;
-        if kind != ScanNodeKind::Directory {
-            return Err("The selected item is not a directory.".into());
-        }
-        let total_items = count_children(&connection, directory_id)?;
-        let max_nodes = requested_max_nodes.clamp(4, 64);
-        let visible = if total_items > max_nodes {
-            max_nodes - 1
-        } else {
-            total_items
-        };
-        let mut statement = connection.prepare("SELECT id,name,kind,size_bytes,category FROM nodes WHERE parent_id=?1 ORDER BY size_bytes DESC,id LIMIT ?2").map_err(db_error)?;
-        let mut nodes = statement
-            .query_map(params![to_i64(directory_id), visible as i64], |row| {
-                let kind = parse_kind(row.get(2)?)?;
-                Ok(ScanTreemapNode {
-                    id: Some(from_i64(row.get(0)?)),
-                    name: row.get(1)?,
-                    kind: if kind == ScanNodeKind::Directory {
-                        ScanTreemapNodeKind::Directory
-                    } else {
-                        ScanTreemapNodeKind::File
-                    },
-                    size_bytes: from_i64(row.get(3)?),
-                    category: parse_category(row.get(4)?)?,
-                    grouped_item_count: 1,
-                })
-            })
-            .map_err(db_error)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(db_error)?;
-        if visible < total_items {
-            let (size, count) = connection.query_row("SELECT COALESCE(SUM(size_bytes),0),COUNT(*) FROM (SELECT size_bytes FROM nodes WHERE parent_id=?1 ORDER BY size_bytes DESC,id LIMIT -1 OFFSET ?2)", params![to_i64(directory_id), visible as i64], |row| Ok((from_i64(row.get(0)?), row.get::<_, i64>(1)? as usize))).map_err(db_error)?;
-            let category = connection.query_row("SELECT category FROM (SELECT size_bytes,category FROM nodes WHERE parent_id=?1 ORDER BY size_bytes DESC,id LIMIT -1 OFFSET ?2) GROUP BY category ORDER BY SUM(size_bytes) DESC LIMIT 1", params![to_i64(directory_id), visible as i64], |row| parse_category(row.get(0)?)).map_err(db_error)?;
+    pub fn treemap(&self, id: u64, max: usize) -> Result<ScanTreemapSummary, String> {
+        let d = self.block(id)?;
+        let total = d.children.len();
+        let max = max.clamp(4, 64);
+        let visible = if total > max { max - 1 } else { total };
+        let mut nodes = d.children[..visible]
+            .iter()
+            .map(map_tree)
+            .collect::<Vec<_>>();
+        if visible < total {
+            let rest = &d.children[visible..];
+            let size = rest.iter().map(|n| n.size_bytes).sum();
             nodes.push(ScanTreemapNode {
                 id: None,
                 name: "Other items".into(),
                 kind: ScanTreemapNodeKind::Group,
                 size_bytes: size,
-                category,
-                grouped_item_count: count,
+                category: dominant(rest),
+                grouped_item_count: rest.len(),
             });
-            nodes.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes));
         }
         Ok(ScanTreemapSummary {
-            directory_id,
-            parent_id,
-            name,
-            total_items,
+            directory_id: id,
+            parent_id: d.parent_id,
+            name: d.name,
+            total_items: total,
             nodes,
         })
     }
-    pub fn search(
-        &self,
-        query: &str,
-        requested_limit: usize,
-    ) -> Result<ScanSearchResponse, String> {
-        let started = Instant::now();
-        let query = query.trim();
-        let limit = requested_limit.clamp(1, 100);
-        if query.chars().count() < 2 {
-            return Ok(search_response(query, vec![], 0, started));
-        }
-        let connection = self.connect()?;
-        let is_path = query.contains(['/', '\\']);
-        let needle = query
-            .rsplit(['/', '\\'])
-            .find(|p| !p.is_empty())
-            .unwrap_or(query);
-        let pattern = format!("%{}%", escape_like(needle));
-        let total=connection.query_row("SELECT COUNT(*) FROM nodes WHERE parent_id IS NOT NULL AND name LIKE ?1 ESCAPE '\\' COLLATE NOCASE",[&pattern],|r|r.get::<_,i64>(0)).map_err(db_error)? as usize;
-        let prefix = format!("{}%", escape_like(needle));
-        let candidate_limit = if is_path { 5000 } else { limit };
-        let mut statement=connection.prepare("SELECT id,parent_id,name,kind,size_bytes,category,modified_at FROM nodes WHERE parent_id IS NOT NULL AND name LIKE ?1 ESCAPE '\\' COLLATE NOCASE ORDER BY CASE WHEN name=?2 COLLATE NOCASE THEN 0 WHEN name LIKE ?3 ESCAPE '\\' COLLATE NOCASE THEN 1 ELSE 2 END,size_bytes DESC LIMIT ?4").map_err(db_error)?;
-        let rows = statement
-            .query_map(
-                params![pattern, needle, prefix, candidate_limit as i64],
-                |r| {
-                    Ok((
-                        from_i64(r.get(0)?),
-                        from_i64(r.get(1)?),
-                        r.get::<_, String>(2)?,
-                        parse_kind(r.get(3)?)?,
-                        from_i64(r.get(4)?),
-                        parse_category(r.get(5)?)?,
-                        r.get::<_, Option<i64>>(6)?.map(from_i64),
-                    ))
-                },
-            )
-            .map_err(db_error)?;
-        let lowered = query.to_ascii_lowercase();
-        let mut results = Vec::with_capacity(limit);
-        for row in rows {
-            let (id, parent, name, kind, size, category, modified) = row.map_err(db_error)?;
-            let path = build_path(&connection, parent, &name)?;
-            if is_path && !path.to_ascii_lowercase().contains(&lowered) {
-                continue;
-            }
-            results.push(ScanSearchResult {
-                id,
-                parent_directory_id: parent,
-                name,
-                kind,
-                size_bytes: size,
-                category,
-                path,
-                modified_at_unix_seconds: modified,
-            });
-            if results.len() == limit {
-                break;
-            }
-        }
-        let matched = if is_path { results.len() } else { total };
-        Ok(search_response(query, results, matched, started))
+    pub fn node_details(&self, dir: u64, node: u64) -> Result<ScanNodeDetails, String> {
+        let n = self
+            .block(dir)?
+            .children
+            .into_iter()
+            .find(|n| n.id == node)
+            .ok_or("Item unavailable.")?;
+        let path = self.path(dir, &n.name)?;
+        let count = if n.kind == ScanNodeKind::Directory {
+            self.block(n.id)?.children.len()
+        } else {
+            0
+        };
+        Ok(ScanNodeDetails {
+            id: n.id,
+            parent_directory_id: dir,
+            name: n.name,
+            kind: n.kind,
+            size_bytes: n.size_bytes,
+            category: n.category,
+            path,
+            child_count: count,
+            modified_at_unix_seconds: n.modified_at_unix_seconds,
+        })
     }
-    pub fn large_files(&self, query: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
-        let connection = self.connect()?;
-        let mut clauses = vec!["kind=0".to_owned(), "size_bytes>=?".to_owned()];
-        let mut values = vec![Value::Integer(to_i64(query.minimum_size_bytes))];
-        if let Some(category) = query.category {
-            clauses.push("category=?".into());
-            values.push(Value::Integer(category_value(category)));
+    fn path(&self, parent: u64, name: &str) -> Result<String, String> {
+        let meta = self.metadata()?;
+        let mut parts = vec![name.to_owned()];
+        let mut id = parent;
+        while id != meta.summary.root_directory_id {
+            let d = self.block(id)?;
+            parts.push(d.name);
+            id = d.parent_id.ok_or("Broken parent index.")?;
         }
-        if let Some(ext) = query
+        let mut p = meta.root_path;
+        for v in parts.into_iter().rev() {
+            p.push(v)
+        }
+        Ok(p.to_string_lossy().into())
+    }
+    fn for_each_node(
+        &self,
+        mut visit: impl FnMut(u64, ScanNodeSummary) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let gen = self.generation()?;
+        let mut reader = BufReader::new(File::open(gen.join(BLOCKS)).map_err(ioe)?);
+        loop {
+            match read_directory(&mut reader) {
+                Ok(directory) => {
+                    for node in directory.children {
+                        visit(directory.id, node)?;
+                    }
+                }
+                Err(error) if error == "eof" => return Ok(()),
+                Err(error) => return Err(error),
+            }
+        }
+    }
+    pub fn search(&self, q: &str, requested: usize) -> Result<ScanSearchResponse, String> {
+        let started = Instant::now();
+        let q = q.trim();
+        let limit = requested.clamp(1, 100);
+        if q.chars().count() < 2 {
+            return Ok(response(q, vec![], 0, started));
+        }
+        let lower = q.to_lowercase();
+        let pathq = q.contains(['/', '\\']);
+        let needle = lower
+            .rsplit(['/', '\\'])
+            .find(|x| !x.is_empty())
+            .unwrap_or(&lower);
+        let mut total = 0;
+        let mut hits = Vec::new();
+        self.for_each_node(|parent, n| {
+            if !n.name.to_lowercase().contains(needle) {
+                return Ok(());
+            }
+            let path = self.path(parent, &n.name)?;
+            if pathq && !path.to_lowercase().contains(&lower) {
+                return Ok(());
+            }
+            total += 1;
+            hits.push(ScanSearchResult {
+                id: n.id,
+                parent_directory_id: parent,
+                name: n.name,
+                kind: n.kind,
+                size_bytes: n.size_bytes,
+                category: n.category,
+                path,
+                modified_at_unix_seconds: n.modified_at_unix_seconds,
+            });
+            hits.sort_by(|a, b| {
+                rank(a, needle)
+                    .cmp(&rank(b, needle))
+                    .then(b.size_bytes.cmp(&a.size_bytes))
+            });
+            if hits.len() > limit {
+                hits.pop();
+            }
+            Ok(())
+        })?;
+        Ok(response(q, hits, total, started))
+    }
+    pub fn large_files(&self, q: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
+        let keep = q.offset.min(100_000) + q.limit.clamp(1, MAX_PAGE);
+        let ext = q
             .extension
             .as_deref()
-            .map(str::trim)
-            .map(|v| v.trim_start_matches('.'))
-            .filter(|v| !v.is_empty())
-        {
-            clauses.push("name LIKE ? ESCAPE '\\' COLLATE NOCASE".into());
-            values.push(Value::Text(format!("%.{}", escape_like(ext))));
-        }
-        if let Some(cutoff) = query.modified_before_unix_seconds {
-            clauses.push("modified_at IS NOT NULL AND modified_at<=?".into());
-            values.push(Value::Integer(to_i64(cutoff)));
-        }
-        let where_sql = clauses.join(" AND ");
-        let totals_sql =
-            format!("SELECT COUNT(*),COALESCE(SUM(size_bytes),0) FROM nodes WHERE {where_sql}");
-        let (total_count, total_size_bytes) = connection
-            .query_row(&totals_sql, params_from_iter(values.iter()), |r| {
-                Ok((r.get::<_, i64>(0)? as usize, from_i64(r.get(1)?)))
-            })
-            .map_err(db_error)?;
-        let offset = query.offset.min(100_000).min(total_count);
-        let limit = query.limit.clamp(1, MAX_PAGE_SIZE);
-        let order = match query.sort {
-            LargeFileSort::SizeDescending => "size_bytes DESC,id",
-            LargeFileSort::ModifiedNewest => "modified_at DESC,id",
-            LargeFileSort::ModifiedOldest => "modified_at ASC,id",
-            LargeFileSort::NameAscending => "name COLLATE NOCASE ASC,id",
-        };
-        let sql=format!("SELECT id,parent_id,name,size_bytes,category,modified_at FROM nodes WHERE {where_sql} ORDER BY {order} LIMIT ? OFFSET ?");
-        let mut page_values = values;
-        page_values.push(Value::Integer(limit as i64));
-        page_values.push(Value::Integer(offset as i64));
-        let mut statement = connection.prepare(&sql).map_err(db_error)?;
-        let rows = statement
-            .query_map(params_from_iter(page_values.iter()), |r| {
-                Ok((
-                    from_i64(r.get(0)?),
-                    from_i64(r.get(1)?),
-                    r.get::<_, String>(2)?,
-                    from_i64(r.get(3)?),
-                    parse_category(r.get(4)?)?,
-                    r.get::<_, Option<i64>>(5)?.map(from_i64),
-                ))
-            })
-            .map_err(db_error)?;
-        let mut items = Vec::with_capacity(limit);
-        for row in rows {
-            let (id, parent, name, size, category, modified) = row.map_err(db_error)?;
-            let path = build_path(&connection, parent, &name)?;
+            .map(|x| x.trim_start_matches('.').to_lowercase());
+        let mut total = 0;
+        let mut bytes = 0;
+        let mut hits = Vec::new();
+        self.for_each_node(|parent, n| {
+            if n.kind != ScanNodeKind::File || n.size_bytes < q.minimum_size_bytes {
+                return Ok(());
+            }
+            if q.category.is_some_and(|c| c != n.category)
+                || q.modified_before_unix_seconds
+                    .is_some_and(|v| n.modified_at_unix_seconds.is_none_or(|m| m > v))
+            {
+                return Ok(());
+            }
+            if ext.as_ref().is_some_and(|e| {
+                Path::new(&n.name)
+                    .extension()
+                    .and_then(|x| x.to_str())
+                    .is_none_or(|x| !x.eq_ignore_ascii_case(e))
+            }) {
+                return Ok(());
+            }
+            total += 1;
+            bytes += n.size_bytes;
+            hits.push((parent, n));
+            if hits.len() > keep.saturating_mul(2).max(2) {
+                sort_large(&mut hits, q.sort);
+                hits.truncate(keep)
+            }
+            Ok(())
+        })?;
+        sort_large(&mut hits, q.sort);
+        hits.truncate(keep);
+        let mut items = Vec::new();
+        for (parent, n) in hits.into_iter().skip(q.offset.min(total)) {
+            let path = self.path(parent, &n.name)?;
             let parent_path = Path::new(&path)
                 .parent()
-                .map(|p| p.to_string_lossy().into_owned())
+                .map(|p| p.to_string_lossy().into())
                 .unwrap_or_default();
-            let extension = Path::new(&name)
+            let extension = Path::new(&n.name)
                 .extension()
-                .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase);
+                .and_then(|x| x.to_str())
+                .map(str::to_lowercase);
             items.push(LargeFileItem {
-                id,
+                id: n.id,
                 parent_directory_id: parent,
-                name,
+                name: n.name,
                 path,
                 parent_path,
                 extension,
-                size_bytes: size,
-                modified_at_unix_seconds: modified,
-                category,
-                safety: safety(category),
+                size_bytes: n.size_bytes,
+                modified_at_unix_seconds: n.modified_at_unix_seconds,
+                category: n.category,
+                safety: safety(n.category),
             });
         }
         Ok(LargeFilesPage {
-            total_count,
-            total_size_bytes,
-            offset,
+            total_count: total,
+            total_size_bytes: bytes,
+            offset: q.offset.min(total),
             items,
         })
     }
-    fn connect(&self) -> Result<Connection, String> {
-        let connection = Connection::open(&self.database_path).map_err(db_error)?;
-        connection.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=NORMAL;PRAGMA temp_store=FILE;PRAGMA cache_size=-32768;").map_err(db_error)?;
-        Ok(connection)
-    }
 }
 
-fn stream_scan_to_database(
-    database_path: &Path,
-    receiver: Receiver<ScanWriteMessage>,
+struct Directory {
+    id: u64,
+    parent_id: Option<u64>,
+    name: String,
+    children: Vec<ScanNodeSummary>,
+}
+fn write_generation(
+    build: &Path,
+    done: &Path,
+    rx: mpsc::Receiver<Message>,
     ready: SyncSender<Result<(), String>>,
-) -> Result<(), String> {
-    let mut connection = Connection::open(database_path).map_err(db_error)?;
-    connection
-        .execute_batch(
-            "PRAGMA journal_mode=WAL;
-         PRAGMA synchronous=NORMAL;
-         PRAGMA temp_store=FILE;
-         PRAGMA cache_size=-32768;
-         PRAGMA wal_autocheckpoint=0;
-         PRAGMA threads=4;
-         DROP TABLE IF EXISTS nodes_staging;
-         CREATE TABLE nodes_staging(
-             id INTEGER PRIMARY KEY,
-             parent_id INTEGER,
-             name TEXT NOT NULL,
-             kind INTEGER NOT NULL,
-             size_bytes INTEGER NOT NULL,
-             category INTEGER NOT NULL,
-             modified_at INTEGER
-         );",
-        )
-        .map_err(db_error)?;
-
-    let transaction = match connection.transaction().map_err(db_error) {
-        Ok(transaction) => transaction,
-        Err(error) => {
-            let _ = ready.send(Err(error.clone()));
-            return Err(error);
+) -> Result<PathBuf, String> {
+    let file = File::create(build.join(BLOCKS)).map_err(ioe);
+    if let Err(e) = file {
+        let _ = ready.send(Err(e.clone()));
+        return Err(e);
+    }
+    let mut blocks = BufWriter::new(file.unwrap());
+    let mut lookup = Vec::new();
+    let _ = ready.send(Ok(()));
+    let meta = loop {
+        match rx.recv() {
+            Ok(Message::Directory(d)) => {
+                let off = blocks.stream_position().map_err(ioe)?;
+                lookup.push((d.id, off));
+                write_directory(&mut blocks, d)?
+            }
+            Ok(Message::Complete { root_path, summary }) => {
+                break Metadata {
+                    version: 1,
+                    root_path,
+                    summary,
+                }
+            }
+            Err(_) => return Err("Scan cancelled.".into()),
         }
     };
-    ready
-        .send(Ok(()))
-        .map_err(|_| "The scanner stopped while the index writer was starting.".to_owned())?;
-
-    let (root_path, summary) = loop {
-        match receiver.recv() {
-            Ok(ScanWriteMessage::NodeBatch { parent_id, nodes }) => {
-                insert_node_batches(&transaction, parent_id, nodes)?;
-            }
-            Ok(ScanWriteMessage::Complete { root_path, summary }) => break (root_path, summary),
-            Err(_) => {
-                drop(transaction);
-                connection
-                    .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
-                    .map_err(db_error)?;
-                return Err("The scan ended before its index was complete.".to_owned());
-            }
-        }
+    blocks.flush().map_err(ioe)?;
+    blocks.get_ref().sync_all().map_err(ioe)?;
+    lookup.sort_unstable_by_key(|x| x.0);
+    let mut w = BufWriter::new(File::create(build.join(LOOKUP)).map_err(ioe)?);
+    for (id, off) in lookup {
+        write_u64(&mut w, id)?;
+        write_u64(&mut w, off)?
+    }
+    w.flush().map_err(ioe)?;
+    w.get_ref().sync_all().map_err(ioe)?;
+    let mut m = File::create(build.join(META)).map_err(ioe)?;
+    m.write_all(&serde_json::to_vec(&meta).map_err(|e| e.to_string())?)
+        .map_err(ioe)?;
+    m.sync_all().map_err(ioe)?;
+    fs::rename(build, done).map_err(ioe)?;
+    Ok(done.to_path_buf())
+}
+fn write_directory<W: Write>(w: &mut W, d: ScanDirectoryRecord) -> Result<(), String> {
+    write_u64(w, d.id)?;
+    write_u64(w, d.parent_id.unwrap_or(PARENT_NONE))?;
+    write_string(w, &d.name)?;
+    write_u32(w, d.children.len() as u32)?;
+    for n in d.children {
+        write_node(w, n)?
+    }
+    Ok(())
+}
+fn read_directory<R: Read>(r: &mut R) -> Result<Directory, String> {
+    let id = match read_u64(r) {
+        Ok(v) => v,
+        Err(e) if e.contains("failed to fill") => return Err("eof".into()),
+        Err(e) => return Err(e),
     };
-
-    transaction
-        .execute(
-            "INSERT INTO nodes_staging (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES (?1,NULL,?2,1,?3,?4,NULL)",
-            params![
-                to_i64(summary.root_directory_id),
-                &summary.target_label,
-                to_i64(summary.total_size_bytes),
-                category_value(ScanCategory::Other)
-            ],
-        )
-        .map_err(db_error)?;
-    transaction.commit().map_err(db_error)?;
-
-    let summary_json = serde_json::to_string(&summary)
-        .map_err(|e| format!("Could not encode the scan summary: {e}"))?;
-    let finalize = connection.transaction().map_err(db_error)?;
-    finalize
-        .execute_batch(
-            "DROP TABLE nodes;
-             ALTER TABLE nodes_staging RENAME TO nodes;
-             CREATE INDEX nodes_parent_size ON nodes(parent_id,size_bytes DESC);
-             CREATE INDEX nodes_file_size ON nodes(size_bytes DESC) WHERE kind=0;",
-        )
-        .map_err(db_error)?;
-    finalize
-        .execute("DELETE FROM completed_scan", [])
-        .map_err(db_error)?;
-    finalize
-        .execute(
-            "INSERT INTO completed_scan (id,root_path,summary_json) VALUES (1,?1,?2)",
-            params![root_path.to_string_lossy(), summary_json],
-        )
-        .map_err(db_error)?;
-    finalize.commit().map_err(db_error)?;
-
-    connection
-        .execute_batch("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;")
-        .map_err(db_error)?;
-    connection
-        .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
-        .map_err(db_error)?;
-    Ok(())
-}
-
-fn insert_node_batches(
-    transaction: &rusqlite::Transaction<'_>,
-    parent_id: u64,
-    nodes: Vec<ScanNodeSummary>,
-) -> Result<(), String> {
-    let mut nodes = nodes.into_iter();
-    loop {
-        let batch = nodes
-            .by_ref()
-            .take(DATABASE_INSERT_BATCH_SIZE)
-            .collect::<Vec<_>>();
-        if batch.is_empty() {
-            return Ok(());
-        }
-
-        let mut sql = String::from(
-            "INSERT INTO nodes_staging (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES ",
-        );
-        for index in 0..batch.len() {
-            if index > 0 {
-                sql.push(',');
-            }
-            sql.push_str("(?,?,?,?,?,?,?)");
-        }
-
-        let mut values = Vec::with_capacity(batch.len() * 7);
-        for node in batch {
-            values.push(Value::Integer(to_i64(node.id)));
-            values.push(Value::Integer(to_i64(parent_id)));
-            values.push(Value::Text(node.name));
-            values.push(Value::Integer(kind_value(node.kind)));
-            values.push(Value::Integer(to_i64(node.size_bytes)));
-            values.push(Value::Integer(category_value(node.category)));
-            values.push(
-                node.modified_at_unix_seconds
-                    .map(to_i64)
-                    .map(Value::Integer)
-                    .unwrap_or(Value::Null),
-            );
-        }
-        transaction
-            .prepare_cached(&sql)
-            .map_err(db_error)?
-            .execute(params_from_iter(values.iter()))
-            .map_err(db_error)?;
+    let p = read_u64(r)?;
+    let name = read_string(r)?;
+    let count = read_u32(r)?;
+    let mut children = Vec::with_capacity(count as usize);
+    for _ in 0..count {
+        children.push(read_node(r)?)
     }
-}
-
-fn migrate(connection: &Connection) -> Result<(), String> {
-    let version = connection
-        .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
-        .map_err(db_error)?;
-    if version > SCHEMA_VERSION {
-        return Err(format!(
-            "Database schema {version} is newer than supported {SCHEMA_VERSION}."
-        ));
-    }
-    if version < 2 {
-        connection.execute_batch("BEGIN;DROP TABLE IF EXISTS scan_directories;DROP TABLE IF EXISTS nodes;DROP TABLE IF EXISTS completed_scan;CREATE TABLE completed_scan(id INTEGER PRIMARY KEY CHECK(id=1),root_path TEXT NOT NULL,summary_json TEXT NOT NULL);CREATE TABLE nodes(id INTEGER PRIMARY KEY,parent_id INTEGER,name TEXT NOT NULL,kind INTEGER NOT NULL,size_bytes INTEGER NOT NULL,category INTEGER NOT NULL,modified_at INTEGER);CREATE INDEX nodes_parent_size ON nodes(parent_id,size_bytes DESC);CREATE INDEX nodes_file_size ON nodes(size_bytes DESC) WHERE kind=0;CREATE INDEX nodes_category_size ON nodes(category,size_bytes DESC) WHERE kind=0;CREATE INDEX nodes_modified ON nodes(modified_at) WHERE kind=0;PRAGMA user_version=2;COMMIT;PRAGMA wal_checkpoint(TRUNCATE);VACUUM;").map_err(|e|format!("Could not replace the obsolete scan-cache schema: {e}"))?;
-    }
-    connection
-        .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
-        .map_err(db_error)?;
-    Ok(())
-}
-fn identity(c: &Connection, id: u64) -> Result<(Option<u64>, String, ScanNodeKind), String> {
-    c.query_row(
-        "SELECT parent_id,name,kind FROM nodes WHERE id=?1",
-        [to_i64(id)],
-        |r| {
-            Ok((
-                r.get::<_, Option<i64>>(0)?.map(from_i64),
-                r.get(1)?,
-                parse_kind(r.get(2)?)?,
-            ))
-        },
-    )
-    .optional()
-    .map_err(db_error)?
-    .ok_or_else(|| "The scanned directory is no longer available.".into())
-}
-fn count_children(c: &Connection, id: u64) -> Result<usize, String> {
-    c.query_row(
-        "SELECT COUNT(*) FROM nodes WHERE parent_id=?1",
-        [to_i64(id)],
-        |r| r.get::<_, i64>(0),
-    )
-    .map(|v| v as usize)
-    .map_err(db_error)
-}
-fn build_path(c: &Connection, parent: u64, name: &str) -> Result<String, String> {
-    let root: String = c
-        .query_row("SELECT root_path FROM completed_scan WHERE id=1", [], |r| {
-            r.get(0)
-        })
-        .map_err(db_error)?;
-    let mut parts = vec![name.to_owned()];
-    let mut current = parent;
-    while current != 0 {
-        let (next, name, kind) = identity(c, current)?;
-        if kind != ScanNodeKind::Directory {
-            return Err("Invalid saved parent path.".into());
-        }
-        parts.push(name);
-        current = next.ok_or_else(|| "Incomplete saved parent path.".to_owned())?;
-    }
-    let mut path = PathBuf::from(root);
-    for part in parts.into_iter().rev() {
-        path.push(part);
-    }
-    Ok(path.to_string_lossy().into_owned())
-}
-fn node_from_row(r: &Row<'_>) -> rusqlite::Result<ScanNodeSummary> {
-    Ok(ScanNodeSummary {
-        id: from_i64(r.get(0)?),
-        name: r.get(1)?,
-        kind: parse_kind(r.get(2)?)?,
-        size_bytes: from_i64(r.get(3)?),
-        category: parse_category(r.get(4)?)?,
-        modified_at_unix_seconds: r.get::<_, Option<i64>>(5)?.map(from_i64),
+    Ok(Directory {
+        id,
+        parent_id: (p != PARENT_NONE).then_some(p),
+        name,
+        children,
     })
 }
-fn kind_value(v: ScanNodeKind) -> i64 {
-    if v == ScanNodeKind::File {
-        0
-    } else {
-        1
+fn write_node<W: Write>(w: &mut W, n: ScanNodeSummary) -> Result<(), String> {
+    write_u64(w, n.id)?;
+    w.write_all(&[
+        if n.kind == ScanNodeKind::File { 0 } else { 1 },
+        n.category.index() as u8,
+    ])
+    .map_err(ioe)?;
+    write_u64(w, n.size_bytes)?;
+    write_u64(w, n.modified_at_unix_seconds.unwrap_or(PARENT_NONE))?;
+    write_string(w, &n.name)
+}
+fn read_node<R: Read>(r: &mut R) -> Result<ScanNodeSummary, String> {
+    let id = read_u64(r)?;
+    let mut t = [0; 2];
+    r.read_exact(&mut t).map_err(ioe)?;
+    let category = *ScanCategory::ALL
+        .get(t[1] as usize)
+        .ok_or("Invalid category.")?;
+    let size_bytes = read_u64(r)?;
+    let m = read_u64(r)?;
+    Ok(ScanNodeSummary {
+        id,
+        name: read_string(r)?,
+        kind: if t[0] == 0 {
+            ScanNodeKind::File
+        } else {
+            ScanNodeKind::Directory
+        },
+        size_bytes,
+        category,
+        modified_at_unix_seconds: (m != PARENT_NONE).then_some(m),
+    })
+}
+fn write_string<W: Write>(w: &mut W, s: &str) -> Result<(), String> {
+    write_u32(w, s.len() as u32)?;
+    w.write_all(s.as_bytes()).map_err(ioe)
+}
+fn read_string<R: Read>(r: &mut R) -> Result<String, String> {
+    let n = read_u32(r)? as usize;
+    if n > 1_048_576 {
+        return Err("Invalid name length.".into());
+    }
+    let mut b = vec![0; n];
+    r.read_exact(&mut b).map_err(ioe)?;
+    String::from_utf8(b).map_err(|_| "Invalid UTF-8 name.".into())
+}
+fn write_u64<W: Write>(w: &mut W, v: u64) -> Result<(), String> {
+    w.write_all(&v.to_le_bytes()).map_err(ioe)
+}
+fn write_u32<W: Write>(w: &mut W, v: u32) -> Result<(), String> {
+    w.write_all(&v.to_le_bytes()).map_err(ioe)
+}
+fn read_u64<R: Read>(r: &mut R) -> Result<u64, String> {
+    let mut b = [0; 8];
+    r.read_exact(&mut b).map_err(ioe)?;
+    Ok(u64::from_le_bytes(b))
+}
+fn read_u32<R: Read>(r: &mut R) -> Result<u32, String> {
+    let mut b = [0; 4];
+    r.read_exact(&mut b).map_err(ioe)?;
+    Ok(u32::from_le_bytes(b))
+}
+fn generations(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut v = fs::read_dir(root)
+        .map_err(ioe)?
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with("generation-"))
+                && valid_generation(p)
+        })
+        .collect::<Vec<_>>();
+    v.sort();
+    Ok(v)
+}
+fn valid_generation(path: &Path) -> bool {
+    let Ok(bytes) = fs::read(path.join(META)) else {
+        return false;
+    };
+    let Ok(meta) = serde_json::from_slice::<Metadata>(&bytes) else {
+        return false;
+    };
+    meta.version == 1 && path.join(BLOCKS).is_file() && path.join(LOOKUP).is_file()
+}
+fn ioe(e: std::io::Error) -> String {
+    format!("Binary scan index error: {e}")
+}
+fn map_tree(n: &ScanNodeSummary) -> ScanTreemapNode {
+    ScanTreemapNode {
+        id: Some(n.id),
+        name: n.name.clone(),
+        kind: if n.kind == ScanNodeKind::Directory {
+            ScanTreemapNodeKind::Directory
+        } else {
+            ScanTreemapNodeKind::File
+        },
+        size_bytes: n.size_bytes,
+        category: n.category,
+        grouped_item_count: 1,
     }
 }
-fn parse_kind(v: i64) -> rusqlite::Result<ScanNodeKind> {
-    match v {
-        0 => Ok(ScanNodeKind::File),
-        1 => Ok(ScanNodeKind::Directory),
-        _ => Err(rusqlite::Error::IntegralValueOutOfRange(0, v)),
+fn dominant(nodes: &[ScanNodeSummary]) -> ScanCategory {
+    let mut a = [0u64; 12];
+    for n in nodes {
+        a[n.category.index()] += n.size_bytes
     }
-}
-fn category_value(v: ScanCategory) -> i64 {
-    v.index() as i64
-}
-fn parse_category(v: i64) -> rusqlite::Result<ScanCategory> {
     ScanCategory::ALL
-        .get(v as usize)
-        .copied()
-        .ok_or(rusqlite::Error::IntegralValueOutOfRange(0, v))
+        .into_iter()
+        .max_by_key(|c| a[c.index()])
+        .unwrap_or(ScanCategory::Other)
 }
-fn to_i64(v: u64) -> i64 {
-    v.min(i64::MAX as u64) as i64
+fn rank(r: &ScanSearchResult, q: &str) -> u8 {
+    let n = r.name.to_lowercase();
+    if n == q {
+        0
+    } else if n.starts_with(q) {
+        1
+    } else {
+        2
+    }
 }
-fn from_i64(v: i64) -> u64 {
-    v.max(0) as u64
+fn response(
+    q: &str,
+    results: Vec<ScanSearchResult>,
+    matched: usize,
+    s: Instant,
+) -> ScanSearchResponse {
+    ScanSearchResponse {
+        query: q.into(),
+        matched_count: matched,
+        results,
+        superseded: false,
+        elapsed_milliseconds: s.elapsed().as_millis() as u64,
+    }
 }
-fn escape_like(v: &str) -> String {
-    v.replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
-}
-fn db_error(e: rusqlite::Error) -> String {
-    format!("DiskVacuum database error: {e}")
+fn sort_large(v: &mut [(u64, ScanNodeSummary)], s: LargeFileSort) {
+    v.sort_by(|a, b| {
+        match s {
+            LargeFileSort::SizeDescending => b.1.size_bytes.cmp(&a.1.size_bytes),
+            LargeFileSort::ModifiedNewest => {
+                b.1.modified_at_unix_seconds
+                    .cmp(&a.1.modified_at_unix_seconds)
+            }
+            LargeFileSort::ModifiedOldest => {
+                a.1.modified_at_unix_seconds
+                    .cmp(&b.1.modified_at_unix_seconds)
+            }
+            LargeFileSort::NameAscending => a.1.name.to_lowercase().cmp(&b.1.name.to_lowercase()),
+        }
+        .then(a.1.id.cmp(&b.1.id))
+    })
 }
 fn safety(c: ScanCategory) -> LargeFileSafety {
     match c {
@@ -723,240 +645,176 @@ fn safety(c: ScanCategory) -> LargeFileSafety {
         _ => LargeFileSafety::Review,
     }
 }
-fn search_response(
-    q: &str,
-    r: Vec<ScanSearchResult>,
-    count: usize,
-    s: Instant,
-) -> ScanSearchResponse {
-    ScanSearchResponse {
-        query: q.into(),
-        matched_count: count,
-        results: r,
-        superseded: false,
-        elapsed_milliseconds: s.elapsed().as_millis() as u64,
-    }
-}
 
 #[cfg(test)]
 mod tests {
-    use super::ScanRepository;
-    use crate::features::scan::model::{
-        CompletedScan, LargeFileSort, LargeFilesQuery, ScanCategory, ScanDirectoryRecord,
-        ScanNodeKind, ScanNodeSummary, ScanSummary,
-    };
-    use rusqlite::Connection;
-    use std::{
-        collections::HashMap,
-        fs,
-        path::PathBuf,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use super::*;
+    use crate::features::scan::model::ScanCategorySummary;
 
-    fn temp_path(label: &str) -> PathBuf {
-        let id = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        std::env::temp_dir().join(format!("disk-vacuum-{label}-{id}"))
+    fn temp(label: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "disk-vacuum-binary-{label}-{}",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
     }
-    fn fixture() -> CompletedScan {
-        let directory = ScanNodeSummary {
-            id: 1,
-            name: "Documents".into(),
-            kind: ScanNodeKind::Directory,
-            size_bytes: 900,
-            category: ScanCategory::Documents,
-            modified_at_unix_seconds: None,
-        };
-        let children = vec![
-            ScanNodeSummary {
-                id: 2,
-                name: "Movie.MKV".into(),
-                kind: ScanNodeKind::File,
-                size_bytes: 700,
-                category: ScanCategory::Video,
-                modified_at_unix_seconds: Some(10),
-            },
-            ScanNodeSummary {
-                id: 3,
-                name: "cache.bin".into(),
-                kind: ScanNodeKind::File,
-                size_bytes: 200,
-                category: ScanCategory::Caches,
-                modified_at_unix_seconds: Some(5),
-            },
-        ];
-        CompletedScan {
-            root_path: "/home/tester".into(),
-            summary: ScanSummary {
-                target_label: "Home".into(),
-                completed_at_unix_seconds: 1,
-                total_size_bytes: 900,
-                capacity: None,
+    fn summary(label: &str) -> ScanSummary {
+        ScanSummary {
+            target_label: label.into(),
+            completed_at_unix_seconds: 1,
+            total_size_bytes: 900,
+            capacity: None,
+            file_count: 2,
+            directory_count: 2,
+            permission_denied_count: 0,
+            unreadable_entry_count: 0,
+            skipped_symlink_count: 0,
+            skipped_hard_link_count: 0,
+            skipped_mounted_filesystem_count: 0,
+            skipped_special_file_count: 0,
+            root_directory_id: 0,
+            top_level_items: vec![],
+            categories: vec![ScanCategorySummary {
+                category: ScanCategory::Documents,
+                size_bytes: 900,
                 file_count: 2,
-                directory_count: 2,
-                permission_denied_count: 0,
-                unreadable_entry_count: 0,
-                skipped_symlink_count: 0,
-                skipped_hard_link_count: 0,
-                skipped_mounted_filesystem_count: 0,
-                skipped_special_file_count: 0,
-                root_directory_id: 0,
-                top_level_items: vec![directory.clone()],
-                categories: vec![],
-            },
-            directories: HashMap::from([
-                (
-                    0,
-                    ScanDirectoryRecord {
-                        id: 0,
-                        parent_id: None,
-                        name: "Home".into(),
-                        children: vec![directory],
-                    },
-                ),
-                (
-                    1,
-                    ScanDirectoryRecord {
-                        id: 1,
-                        parent_id: Some(0),
-                        name: "Documents".into(),
-                        children,
-                    },
-                ),
-            ]),
+            }],
         }
     }
+    fn populate(repo: &ScanRepository, label: &str) {
+        let writer = repo.begin_scan_write().unwrap();
+        writer
+            .write_directory(ScanDirectoryRecord {
+                id: 1,
+                parent_id: Some(0),
+                name: "Documents".into(),
+                children: vec![
+                    ScanNodeSummary {
+                        id: 2,
+                        name: "movie.mkv".into(),
+                        kind: ScanNodeKind::File,
+                        size_bytes: 700,
+                        category: ScanCategory::Video,
+                        modified_at_unix_seconds: Some(10),
+                    },
+                    ScanNodeSummary {
+                        id: 3,
+                        name: "notes.txt".into(),
+                        kind: ScanNodeKind::File,
+                        size_bytes: 200,
+                        category: ScanCategory::Documents,
+                        modified_at_unix_seconds: Some(5),
+                    },
+                ],
+            })
+            .unwrap();
+        writer
+            .write_directory(ScanDirectoryRecord {
+                id: 0,
+                parent_id: None,
+                name: label.into(),
+                children: vec![ScanNodeSummary {
+                    id: 1,
+                    name: "Documents".into(),
+                    kind: ScanNodeKind::Directory,
+                    size_bytes: 900,
+                    category: ScanCategory::Documents,
+                    modified_at_unix_seconds: None,
+                }],
+            })
+            .unwrap();
+        writer
+            .finish("/home/tester".into(), summary(label))
+            .unwrap();
+    }
+
     #[test]
-    fn normalized_scan_supports_lazy_feature_queries() {
-        let path = temp_path("queries");
-        let repository = ScanRepository::open(&path).unwrap();
-        repository.save_completed_scan(&fixture()).unwrap();
+    fn binary_generation_survives_restart_and_supports_queries() {
+        let path = temp("restart");
+        let repo = ScanRepository::open(&path).unwrap();
+        populate(&repo, "Home");
+        drop(repo);
+        let repo = ScanRepository::open(&path).unwrap();
         assert_eq!(
-            repository.load_scan_summary().unwrap().unwrap().file_count,
-            2
+            repo.load_scan_summary().unwrap().unwrap().target_label,
+            "Home"
         );
-        assert_eq!(repository.directory(1, 0, 100).unwrap().items.len(), 2);
-        assert_eq!(repository.treemap(1, 4).unwrap().total_items, 2);
+        assert_eq!(repo.directory(1, 0, 100).unwrap().items.len(), 2);
         assert_eq!(
-            repository.node_details(1, 2).unwrap().path,
-            "/home/tester/Documents/Movie.MKV"
+            repo.node_details(1, 2).unwrap().path,
+            "/home/tester/Documents/movie.mkv"
         );
-        assert_eq!(repository.search("movie", 50).unwrap().results.len(), 1);
-        let result = repository
+        assert_eq!(repo.search("movie", 50).unwrap().results.len(), 1);
+        let large = repo
             .large_files(&LargeFilesQuery {
-                minimum_size_bytes: 100,
+                minimum_size_bytes: 500,
                 category: None,
                 extension: Some("mkv".into()),
                 modified_before_unix_seconds: None,
                 sort: LargeFileSort::SizeDescending,
                 offset: 0,
-                limit: 100,
+                limit: 50,
             })
             .unwrap();
-        assert_eq!(result.total_count, 1);
-        assert_eq!(result.items[0].path, "/home/tester/Documents/Movie.MKV");
-        fs::remove_dir_all(path).unwrap();
-    }
-    #[test]
-    fn completed_stream_atomically_replaces_the_index_with_two_query_indexes() {
-        let path = temp_path("stream-complete");
-        let repository = ScanRepository::open(&path).unwrap();
-        repository.save_completed_scan(&fixture()).unwrap();
-
-        let replacement = fixture();
-        let session = repository.begin_scan_write().unwrap();
-        for directory in replacement.directories.into_values() {
-            session.write_directory(directory).unwrap();
-        }
-        session
-            .finish(replacement.root_path, replacement.summary)
-            .unwrap();
-
-        assert_eq!(
-            repository
-                .load_scan_summary()
-                .unwrap()
-                .unwrap()
-                .target_label,
-            "Home"
-        );
-        let connection = Connection::open(path.join("disk-vacuum.sqlite3")).unwrap();
-        let staging_exists: bool = connection
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='nodes_staging')",
-                [],
-                |row| row.get(0),
-            )
-            .unwrap();
-        assert!(!staging_exists);
-        let mut statement = connection
-            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='nodes' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-            .unwrap();
-        let indexes = statement
-            .query_map([], |row| row.get::<_, String>(0))
-            .unwrap()
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap();
-        assert_eq!(indexes, vec!["nodes_file_size", "nodes_parent_size"]);
-        drop(statement);
-        drop(connection);
+        assert_eq!(large.total_count, 1);
+        assert_eq!(large.items[0].name, "movie.mkv");
         fs::remove_dir_all(path).unwrap();
     }
 
     #[test]
-    fn abandoned_stream_keeps_the_previous_completed_scan() {
-        let path = temp_path("rollback");
-        let repository = ScanRepository::open(&path).unwrap();
-        repository.save_completed_scan(&fixture()).unwrap();
-
-        let session = repository.begin_scan_write().unwrap();
-        session
+    fn cancelled_generation_preserves_previous_scan() {
+        let path = temp("cancel");
+        let repo = ScanRepository::open(&path).unwrap();
+        populate(&repo, "Previous");
+        let writer = repo.begin_scan_write().unwrap();
+        writer
             .write_directory(ScanDirectoryRecord {
                 id: 0,
                 parent_id: None,
-                name: "Incomplete".into(),
-                children: vec![ScanNodeSummary {
-                    id: 99,
-                    name: "partial.bin".into(),
-                    kind: ScanNodeKind::File,
-                    size_bytes: 1,
-                    category: ScanCategory::Other,
-                    modified_at_unix_seconds: None,
-                }],
+                name: "Partial".into(),
+                children: vec![],
             })
             .unwrap();
-        drop(session);
-
+        drop(writer);
         assert_eq!(
-            repository
+            repo.load_scan_summary().unwrap().unwrap().target_label,
+            "Previous"
+        );
+        drop(repo);
+        assert_eq!(
+            ScanRepository::open(&path)
+                .unwrap()
                 .load_scan_summary()
                 .unwrap()
                 .unwrap()
                 .target_label,
-            "Home"
+            "Previous"
         );
-        assert!(repository.node_details(0, 99).is_err());
-        assert_eq!(repository.directory(1, 0, 100).unwrap().items.len(), 2);
         fs::remove_dir_all(path).unwrap();
     }
 
     #[test]
-    fn version_one_json_cache_is_invalidated_by_schema_migration() {
-        let path = temp_path("migration");
-        fs::create_dir_all(&path).unwrap();
-        let database_path = path.join("disk-vacuum.sqlite3");
-        let connection = Connection::open(&database_path).unwrap();
-        connection.execute_batch("CREATE TABLE completed_scan(id INTEGER PRIMARY KEY,root_path TEXT,summary_json TEXT);CREATE TABLE scan_directories(id INTEGER PRIMARY KEY,record_json TEXT);INSERT INTO completed_scan VALUES(1,'/','{}');PRAGMA user_version=1;").unwrap();
-        drop(connection);
-        let repository = ScanRepository::open(&path).unwrap();
-        assert!(repository.load_scan_summary().unwrap().is_none());
-        let connection = Connection::open(database_path).unwrap();
-        let version: i64 = connection
-            .pragma_query_value(None, "user_version", |row| row.get(0))
-            .unwrap();
-        assert_eq!(version, 2);
+    fn corrupt_newer_generation_is_ignored() {
+        let path = temp("corrupt");
+        let repo = ScanRepository::open(&path).unwrap();
+        populate(&repo, "Valid");
+        let corrupt = path
+            .join(ROOT)
+            .join("generation-99999999999999999999999999999999999999");
+        fs::create_dir_all(&corrupt).unwrap();
+        fs::write(corrupt.join(META), b"not json").unwrap();
+        drop(repo);
+        assert_eq!(
+            ScanRepository::open(&path)
+                .unwrap()
+                .load_scan_summary()
+                .unwrap()
+                .unwrap()
+                .target_label,
+            "Valid"
+        );
         fs::remove_dir_all(path).unwrap();
     }
 }
