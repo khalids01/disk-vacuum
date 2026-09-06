@@ -20,15 +20,12 @@ use crate::{
         capacity::scan_capacity,
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
-        large_files::query_large_files,
         model::{
             CompletedScan, LargeFilesPage, LargeFilesQuery, ScanCapacity, ScanCategory,
             ScanCategorySummary, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
             ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage,
             ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
-        search::{node_path, search_completed_scan},
-        treemap::build_treemap_summary,
     },
 };
 
@@ -355,49 +352,35 @@ pub fn cancel_scan(state: State<'_, AppState>) -> Result<bool, ScanCommandError>
 #[tauri::command]
 pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary>, String> {
     state
-        .completed_scan
+        .current_scan
         .lock()
-        .map(|completed_scan| {
-            completed_scan
-                .as_ref()
-                .map(|completed_scan| completed_scan.summary.clone())
-        })
+        .map(|scan| scan.clone())
         .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())
 }
 
 #[tauri::command]
-pub fn get_scan_directory(
+pub async fn get_scan_directory(
     directory_id: u64,
     offset: usize,
     limit: usize,
     state: State<'_, AppState>,
 ) -> Result<ScanDirectoryPage, String> {
-    let completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-    let completed_scan = completed_scan
-        .as_ref()
-        .ok_or_else(|| "Complete a scan before browsing its folders.".to_owned())?;
-
-    build_directory_page(completed_scan, directory_id, offset, limit)
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.directory(directory_id, offset, limit))
+        .await
+        .map_err(|_| "DiskVacuum could not query the scanned directory.".to_owned())?
 }
 
 #[tauri::command]
-pub fn get_scan_treemap(
+pub async fn get_scan_treemap(
     directory_id: u64,
     max_nodes: usize,
     state: State<'_, AppState>,
 ) -> Result<ScanTreemapSummary, String> {
-    let completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-    let completed_scan = completed_scan
-        .as_ref()
-        .ok_or_else(|| "Complete a scan before viewing its space map.".to_owned())?;
-
-    build_treemap_summary(completed_scan, directory_id, max_nodes)
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.treemap(directory_id, max_nodes))
+        .await
+        .map_err(|_| "DiskVacuum could not query the space map.".to_owned())?
 }
 
 #[tauri::command]
@@ -405,18 +388,10 @@ pub async fn get_large_files(
     request: LargeFilesQuery,
     state: State<'_, AppState>,
 ) -> Result<LargeFilesPage, String> {
-    let completed_scan = Arc::clone(&state.completed_scan);
-    tauri::async_runtime::spawn_blocking(move || {
-        let completed_scan = completed_scan
-            .lock()
-            .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-        let completed_scan = completed_scan
-            .as_ref()
-            .ok_or_else(|| "Complete a scan before viewing large files.".to_owned())?;
-        Ok(query_large_files(completed_scan, &request))
-    })
-    .await
-    .map_err(|_| "DiskVacuum could not finish querying large files.".to_owned())?
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.large_files(&request))
+        .await
+        .map_err(|_| "DiskVacuum could not query large files.".to_owned())?
 }
 
 #[tauri::command]
@@ -426,101 +401,33 @@ pub async fn search_scan(
     state: State<'_, AppState>,
 ) -> Result<ScanSearchResponse, String> {
     let search_id = state.latest_search_id.fetch_add(1, Ordering::Relaxed) + 1;
-    let completed_scan = Arc::clone(&state.completed_scan);
+    let repository = state.scan_repository.clone();
     let latest_search_id = Arc::clone(&state.latest_search_id);
-
     tauri::async_runtime::spawn_blocking(move || {
-        let completed_scan = completed_scan
-            .lock()
-            .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-        let completed_scan = completed_scan
-            .as_ref()
-            .ok_or_else(|| "Complete a scan before searching its contents.".to_owned())?;
-
-        Ok(search_completed_scan(completed_scan, &query, limit, || {
-            latest_search_id.load(Ordering::Relaxed) != search_id
-        }))
+        let response = repository.search(&query, limit)?;
+        if latest_search_id.load(Ordering::Relaxed) != search_id {
+            return Ok(ScanSearchResponse {
+                superseded: true,
+                results: Vec::new(),
+                ..response
+            });
+        }
+        Ok(response)
     })
     .await
-    .map_err(|_| "DiskVacuum could not finish searching its scan index.".to_owned())?
+    .map_err(|_| "DiskVacuum could not search the scan database.".to_owned())?
 }
 
 #[tauri::command]
-pub fn get_scan_node_details(
+pub async fn get_scan_node_details(
     directory_id: u64,
     node_id: u64,
     state: State<'_, AppState>,
 ) -> Result<ScanNodeDetails, String> {
-    let completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-    let completed_scan = completed_scan
-        .as_ref()
-        .ok_or_else(|| "Complete a scan before inspecting an item.".to_owned())?;
-
-    build_node_details(completed_scan, directory_id, node_id)
-}
-
-fn build_node_details(
-    completed_scan: &CompletedScan,
-    directory_id: u64,
-    node_id: u64,
-) -> Result<ScanNodeDetails, String> {
-    let directory = completed_scan
-        .directories
-        .get(&directory_id)
-        .ok_or_else(|| "The scanned directory is no longer available.".to_owned())?;
-    let node = directory
-        .children
-        .iter()
-        .find(|node| node.id == node_id)
-        .ok_or_else(|| "The selected scanned item is no longer available.".to_owned())?;
-
-    let path = node_path(completed_scan, directory_id, &node.name);
-
-    Ok(ScanNodeDetails {
-        id: node.id,
-        parent_directory_id: directory_id,
-        name: node.name.clone(),
-        kind: node.kind,
-        size_bytes: node.size_bytes,
-        category: node.category,
-        path: path.to_string_lossy().into_owned(),
-        child_count: completed_scan
-            .directories
-            .get(&node.id)
-            .map_or(0, |record| record.children.len()),
-        modified_at_unix_seconds: node.modified_at_unix_seconds,
-    })
-}
-
-fn build_directory_page(
-    completed_scan: &CompletedScan,
-    directory_id: u64,
-    offset: usize,
-    limit: usize,
-) -> Result<ScanDirectoryPage, String> {
-    const MAX_PAGE_SIZE: usize = 200;
-
-    let directory = completed_scan
-        .directories
-        .get(&directory_id)
-        .ok_or_else(|| "The scanned directory is no longer available.".to_owned())?;
-
-    let offset = offset.min(directory.children.len());
-    let end = offset
-        .saturating_add(limit.clamp(1, MAX_PAGE_SIZE))
-        .min(directory.children.len());
-
-    Ok(ScanDirectoryPage {
-        directory_id: directory.id,
-        parent_id: directory.parent_id,
-        name: directory.name.clone(),
-        total_items: directory.children.len(),
-        offset,
-        items: directory.children[offset..end].to_vec(),
-    })
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.node_details(directory_id, node_id))
+        .await
+        .map_err(|_| "DiskVacuum could not query item details.".to_owned())?
 }
 
 fn begin_scan(state: &AppState) -> Result<ActiveScan, ScanCommandError> {
@@ -579,14 +486,14 @@ fn store_completed_scan(
     state: &AppState,
     completed: CompletedScan,
 ) -> Result<ScanSummary, ScanCommandError> {
-    let summary = completed.summary.clone();
-    let mut completed_scan = state.completed_scan.lock().map_err(|_| {
+    let summary = completed.summary;
+    let mut current_scan = state.current_scan.lock().map_err(|_| {
         ScanCommandError::new(
             "state_unavailable",
             "DiskVacuum could not update its scan state.",
         )
     })?;
-    *completed_scan = Some(completed);
+    *current_scan = Some(summary.clone());
     Ok(summary)
 }
 
@@ -1004,10 +911,7 @@ mod tests {
         time::SystemTime,
     };
 
-    use super::{
-        allocated_size, build_directory_page, build_node_details, scan_directory, ScanCapacity,
-        ScanFailure, ScanNodeKind,
-    };
+    use super::{allocated_size, scan_directory, ScanCapacity, ScanFailure};
 
     fn unique_fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -1088,34 +992,6 @@ mod tests {
             .get(&summary.root_directory_id)
             .expect("root directory should be indexed");
         assert_eq!(root.children.len(), 2);
-        let first_page = build_directory_page(&completed, summary.root_directory_id, 0, 1)
-            .expect("root page should be available");
-        assert_eq!(first_page.total_items, 2);
-        assert_eq!(first_page.items.len(), 1);
-        let nested = root
-            .children
-            .iter()
-            .find(|item| matches!(item.kind, ScanNodeKind::Directory))
-            .expect("nested directory should be indexed");
-        let nested_page = build_directory_page(&completed, nested.id, 0, 100)
-            .expect("nested page should be available");
-        assert_eq!(nested_page.parent_id, Some(summary.root_directory_id));
-        assert_eq!(nested_page.items.len(), 1);
-        assert_eq!(nested_page.items[0].name, "large.txt");
-        let nested_details = build_node_details(&completed, summary.root_directory_id, nested.id)
-            .expect("nested directory details should be available");
-        assert_eq!(
-            nested_details.path,
-            fixture.join("nested").to_string_lossy()
-        );
-        assert_eq!(nested_details.child_count, 1);
-        let file_details = build_node_details(&completed, nested.id, nested_page.items[0].id)
-            .expect("file details should be available");
-        assert_eq!(
-            file_details.path,
-            fixture.join("nested").join("large.txt").to_string_lossy()
-        );
-        assert_eq!(file_details.child_count, 0);
 
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
     }

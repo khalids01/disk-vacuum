@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 6 — Large Files**
-- Current task: **Review Large Files on Linux**
+- Current phase: **Backend Phase 2 — Resource-efficient persistence**
+- Current task: **Review normalized SQLite scan on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -461,6 +461,10 @@ Only create when needed.
 - [x] Completed scan persisted atomically to SQLite
 - [x] Saved scan restored after app restart
 - [x] Versioned database schema and persistence test
+- [x] Normalized scan-node schema replaces directory JSON blobs
+- [x] Only scan summary retained in RAM after completion
+- [x] Explorer, treemap, Search, Large Files query SQLite lazily
+- [x] WAL checkpointed and obsolete schema vacuumed
 - [x] Frontend scan hook
 - [x] Frontend scan progress
 - [ ] macOS tested

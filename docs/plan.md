@@ -1748,13 +1748,13 @@ Never panic because one file cannot be read.
 - do not hash files during basic scan;
 - do not run duplicate detection during every scan;
 - do not calculate every smart-clean category eagerly if expensive;
-- cache completed scan index in Rust memory;
+- keep scan construction in Rust and persist the completed index to normalized SQLite rows;
 - derive feature lists from the cached index;
 - send bounded/paginated results;
 - frontend lists must virtualize when large;
 - avoid giant JSON payloads.
 
-The reference product keeps its full scan index on the Rust side and queries it per view. DiskVacuum should follow the same high-level performance principle while using its own implementation.
+DiskVacuum keeps filesystem traversal and scan construction in Rust, then queries its normalized SQLite index per view. Only bounded page results and the small scan summary remain in memory after completion.
 ⸻ 28. Large Files Backend
 
 Query the existing scan index.
@@ -1928,7 +1928,7 @@ Do not add SQLite merely because a desktop app “should have a database”.
 
 Add a database only when there is a clear need.
 
-The completed scan index now has that need: users expect millions of scanned items to survive an app restart. Store the last completed scan atomically in app-private SQLite through the Rust repository layer, restore it in the background at startup, and keep the live index in Rust memory for responsive browsing. Settings can remain in their simpler store until their requirements justify moving them.
+The completed scan index now has that need: users expect millions of scanned items to survive an app restart. Store the last completed scan atomically as normalized, indexed rows in app-private SQLite through the Rust repository layer. Load only its small summary at startup and query bounded Explorer, treemap, Search, and Large Files results lazily so the full index is never reconstructed in RAM. Settings can remain in their simpler store until their requirements justify moving them.
 ⸻ 35. Platform-Specific Requirements
 
 35.1 macOS first-class support
