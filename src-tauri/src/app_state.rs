@@ -6,10 +6,10 @@ use std::sync::{
 use crate::features::scan::model::CompletedScan;
 
 pub struct AppState {
-    pub completed_scan: Mutex<Option<CompletedScan>>,
+    pub completed_scan: Arc<Mutex<Option<CompletedScan>>>,
     pub active_scan: Mutex<Option<ActiveScan>>,
     pub next_scan_id: AtomicU64,
-    pub latest_search_id: AtomicU64,
+    pub latest_search_id: Arc<AtomicU64>,
 }
 
 #[derive(Clone)]
@@ -21,10 +21,10 @@ pub struct ActiveScan {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            completed_scan: Mutex::new(None),
+            completed_scan: Arc::new(Mutex::new(None)),
             active_scan: Mutex::new(None),
             next_scan_id: AtomicU64::new(1),
-            latest_search_id: AtomicU64::new(0),
+            latest_search_id: Arc::new(AtomicU64::new(0)),
         }
     }
 }

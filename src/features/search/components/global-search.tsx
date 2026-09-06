@@ -13,7 +13,7 @@ import {
 import { useSearchStore } from "@/stores/search-store";
 
 const SEARCH_LIMIT = 50;
-const SEARCH_DELAY_MS = 250;
+const SEARCH_DELAY_MS = 400;
 
 export function GlobalSearch() {
   const isOpen = useSearchStore((state) => state.isOpen);
@@ -59,12 +59,19 @@ export function GlobalSearch() {
   }, [isOpen]);
 
   useEffect(() => {
+    if (!isOpen) {
+      setQuery("");
+      setDebouncedQuery("");
+      setActiveIndex(0);
+      return;
+    }
+
     const timeout = window.setTimeout(
       () => setDebouncedQuery(query),
       SEARCH_DELAY_MS,
     );
     return () => window.clearTimeout(timeout);
-  }, [query]);
+  }, [isOpen, query]);
 
   function openResult(result: ScanSearchResult) {
     const directoryId =

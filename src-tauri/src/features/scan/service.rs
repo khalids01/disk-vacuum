@@ -375,23 +375,29 @@ pub fn get_scan_treemap(
 }
 
 #[tauri::command]
-pub fn search_scan(
+pub async fn search_scan(
     query: String,
     limit: usize,
     state: State<'_, AppState>,
 ) -> Result<ScanSearchResponse, String> {
     let search_id = state.latest_search_id.fetch_add(1, Ordering::Relaxed) + 1;
-    let completed_scan = state
-        .completed_scan
-        .lock()
-        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
-    let completed_scan = completed_scan
-        .as_ref()
-        .ok_or_else(|| "Complete a scan before searching its contents.".to_owned())?;
+    let completed_scan = Arc::clone(&state.completed_scan);
+    let latest_search_id = Arc::clone(&state.latest_search_id);
 
-    Ok(search_completed_scan(completed_scan, &query, limit, || {
-        state.latest_search_id.load(Ordering::Relaxed) != search_id
-    }))
+    tauri::async_runtime::spawn_blocking(move || {
+        let completed_scan = completed_scan
+            .lock()
+            .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+        let completed_scan = completed_scan
+            .as_ref()
+            .ok_or_else(|| "Complete a scan before searching its contents.".to_owned())?;
+
+        Ok(search_completed_scan(completed_scan, &query, limit, || {
+            latest_search_id.load(Ordering::Relaxed) != search_id
+        }))
+    })
+    .await
+    .map_err(|_| "DiskVacuum could not finish searching its scan index.".to_owned())?
 }
 
 #[tauri::command]
