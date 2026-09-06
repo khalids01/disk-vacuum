@@ -9,6 +9,7 @@ pub struct AppState {
     pub completed_scan: Mutex<Option<CompletedScan>>,
     pub active_scan: Mutex<Option<ActiveScan>>,
     pub next_scan_id: AtomicU64,
+    pub latest_search_id: AtomicU64,
 }
 
 #[derive(Clone)]
@@ -23,6 +24,7 @@ impl Default for AppState {
             completed_scan: Mutex::new(None),
             active_scan: Mutex::new(None),
             next_scan_id: AtomicU64::new(1),
+            latest_search_id: AtomicU64::new(0),
         }
     }
 }

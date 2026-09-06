@@ -178,6 +178,29 @@ pub struct ScanTreemapSummary {
     pub nodes: Vec<ScanTreemapNode>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanSearchResult {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub name: String,
+    pub kind: ScanNodeKind,
+    pub size_bytes: u64,
+    pub category: ScanCategory,
+    pub path: String,
+    pub modified_at_unix_seconds: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanSearchResponse {
+    pub query: String,
+    pub matched_count: usize,
+    pub results: Vec<ScanSearchResult>,
+    pub superseded: bool,
+    pub elapsed_milliseconds: u64,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {

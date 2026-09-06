@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 4 — Space Map**
-- Current task: **Review the Space Map with a fresh Linux system scan**
+- Current phase: **Backend Phase 5 — Search**
+- Current task: **Review Global Search on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -70,7 +70,7 @@
 - [x] `features/app-leftovers`
 - [x] `features/system`
 - [x] `features/settings`
-- [ ] `features/search`
+- [x] `features/search`
 
 ---
 
@@ -388,19 +388,19 @@ Only create when needed.
 
 # Phase 17 — Global Search UI
 
-- [ ] Search trigger in top bar
-- [ ] Cmd+K
-- [ ] Ctrl+K
-- [ ] Search overlay
-- [ ] Keyboard result navigation
-- [ ] Result row
-- [ ] Path
-- [ ] Size
-- [ ] Type
-- [ ] Empty query state
-- [ ] No result state
-- [ ] Loading state
-- [ ] Mobile full-screen search
+- [x] Search trigger in top bar
+- [x] Cmd+K
+- [x] Ctrl+K
+- [x] Search overlay
+- [x] Keyboard result navigation
+- [x] Result row
+- [x] Path
+- [x] Size
+- [x] Type
+- [x] Empty query state
+- [x] No result state
+- [x] Loading state
+- [x] Mobile full-screen search
 
 ---
 
@@ -492,13 +492,13 @@ Only create when needed.
 
 # Backend Phase 5 — Search
 
-- [ ] Search cached scan index
-- [ ] Result limit
-- [ ] Case behavior
-- [ ] Path/name matching
-- [ ] Cancellation/debounce behavior
-- [ ] Wire search overlay
-- [ ] Performance tested
+- [x] Search cached scan index
+- [x] Result limit
+- [x] Case behavior
+- [x] Path/name matching
+- [x] Cancellation/debounce behavior
+- [x] Wire search overlay
+- [x] Performance tested
 
 ---
 

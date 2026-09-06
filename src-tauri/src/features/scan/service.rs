@@ -23,8 +23,9 @@ use crate::{
         model::{
             CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
             ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-            ScanProgress, ScanSummary, ScanTreemapSummary,
+            ScanProgress, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
+        search::{node_path, search_completed_scan},
         treemap::build_treemap_summary,
     },
 };
@@ -374,6 +375,26 @@ pub fn get_scan_treemap(
 }
 
 #[tauri::command]
+pub fn search_scan(
+    query: String,
+    limit: usize,
+    state: State<'_, AppState>,
+) -> Result<ScanSearchResponse, String> {
+    let search_id = state.latest_search_id.fetch_add(1, Ordering::Relaxed) + 1;
+    let completed_scan = state
+        .completed_scan
+        .lock()
+        .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+    let completed_scan = completed_scan
+        .as_ref()
+        .ok_or_else(|| "Complete a scan before searching its contents.".to_owned())?;
+
+    Ok(search_completed_scan(completed_scan, &query, limit, || {
+        state.latest_search_id.load(Ordering::Relaxed) != search_id
+    }))
+}
+
+#[tauri::command]
 pub fn get_scan_node_details(
     directory_id: u64,
     node_id: u64,
@@ -405,23 +426,7 @@ fn build_node_details(
         .find(|node| node.id == node_id)
         .ok_or_else(|| "The selected scanned item is no longer available.".to_owned())?;
 
-    let mut directory_names = Vec::new();
-    let mut current_id = directory_id;
-    while current_id != completed_scan.summary.root_directory_id {
-        let current = completed_scan
-            .directories
-            .get(&current_id)
-            .ok_or_else(|| "The scanned path could not be reconstructed.".to_owned())?;
-        directory_names.push(current.name.as_str());
-        current_id = current
-            .parent_id
-            .ok_or_else(|| "The scanned path could not be reconstructed.".to_owned())?;
-    }
-    let mut path = completed_scan.root_path.clone();
-    for name in directory_names.into_iter().rev() {
-        path.push(name);
-    }
-    path.push(&node.name);
+    let path = node_path(completed_scan, directory_id, &node.name);
 
     Ok(ScanNodeDetails {
         id: node.id,
