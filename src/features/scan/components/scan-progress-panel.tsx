@@ -61,6 +61,7 @@ export function ScanProgressPanel() {
   }
 
   const isCancelling = status === "cancelling";
+  const isSaving = progress?.stage === "saving";
   const observedBytes = progress?.bytesObserved ?? 0;
   const usedSpaceBytes = progress?.capacity?.usedSpaceBytes ?? 0;
   const estimatedPercent =
@@ -87,10 +88,15 @@ export function ScanProgressPanel() {
             <p className="text-sm font-semibold">
               {isCancelling
                 ? "Stopping scan…"
-                : `Scanning ${progress?.targetLabel ?? "selected location"}`}
+                : isSaving
+                  ? "Saving scan…"
+                  : `Scanning ${progress?.targetLabel ?? "selected location"}`}
             </p>
             <p className="font-mono text-xs text-muted-foreground">
-              {formatElapsed(progress?.elapsedMilliseconds ?? 0)} elapsed
+              {isSaving
+                ? "Writing the durable index"
+                : formatElapsed(progress?.elapsedMilliseconds ?? 0) +
+                  " elapsed"}
             </p>
           </div>
           <div
@@ -126,7 +132,9 @@ export function ScanProgressPanel() {
             <Button
               variant="outline"
               size="sm"
-              disabled={!progress || isCancelling || cancellation.isPending}
+              disabled={
+                !progress || isCancelling || isSaving || cancellation.isPending
+              }
               onClick={() => cancellation.mutate()}
             >
               <CircleStopIcon data-icon="inline-start" />

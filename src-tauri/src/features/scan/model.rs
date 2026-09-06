@@ -1,8 +1,8 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanCommandError {
     pub code: String,
@@ -18,7 +18,7 @@ impl ScanCommandError {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanCapacity {
     pub total_space_bytes: u64,
@@ -28,9 +28,17 @@ pub struct ScanCapacity {
     pub reserved_space_bytes: u64,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ScanProgressStage {
+    Scanning,
+    Saving,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanProgress {
+    pub stage: ScanProgressStage,
     pub target_label: String,
     pub entries_visited: u64,
     pub bytes_observed: u64,
@@ -38,7 +46,7 @@ pub struct ScanProgress {
     pub capacity: Option<ScanCapacity>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanNodeSummary {
     pub id: u64,
@@ -49,7 +57,7 @@ pub struct ScanNodeSummary {
     pub modified_at_unix_seconds: Option<u64>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanCategory {
     Applications,
@@ -87,7 +95,7 @@ impl ScanCategory {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanCategorySummary {
     pub category: ScanCategory,
@@ -95,14 +103,14 @@ pub struct ScanCategorySummary {
     pub file_count: u64,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanNodeKind {
     File,
     Directory,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanSummary {
     pub target_label: String,
@@ -122,6 +130,7 @@ pub struct ScanSummary {
     pub categories: Vec<ScanCategorySummary>,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
 pub struct ScanDirectoryRecord {
     pub id: u64,
     pub parent_id: Option<u64>,
@@ -135,7 +144,7 @@ pub struct CompletedScan {
     pub directories: HashMap<u64, ScanDirectoryRecord>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanTreemapNodeKind {
     File,
@@ -143,7 +152,7 @@ pub enum ScanTreemapNodeKind {
     Group,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanTreemapNode {
     pub id: Option<u64>,
@@ -154,7 +163,7 @@ pub struct ScanTreemapNode {
     pub grouped_item_count: usize,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanNodeDetails {
     pub id: u64,
@@ -168,7 +177,7 @@ pub struct ScanNodeDetails {
     pub modified_at_unix_seconds: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanTreemapSummary {
     pub directory_id: u64,
@@ -178,7 +187,7 @@ pub struct ScanTreemapSummary {
     pub nodes: Vec<ScanTreemapNode>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanSearchResult {
     pub id: u64,
@@ -191,7 +200,7 @@ pub struct ScanSearchResult {
     pub modified_at_unix_seconds: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanSearchResponse {
     pub query: String,
@@ -201,7 +210,7 @@ pub struct ScanSearchResponse {
     pub elapsed_milliseconds: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {
     pub directory_id: u64,

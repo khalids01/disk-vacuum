@@ -1,6 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
-import type { ScanProgress } from "@/features/scan/api/scan-api";
+import { queryClient } from "@/app/query-client";
+import type { ScanProgress, ScanSummary } from "@/features/scan/api/scan-api";
+import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { useScanStore } from "@/stores/scan-store";
 
 export function ScanProgressBridge() {
@@ -8,22 +10,26 @@ export function ScanProgressBridge() {
 
   useEffect(() => {
     let disposed = false;
-    let unlisten: (() => void) | undefined;
+    const unlisteners: Array<() => void> = [];
 
-    void listen<ScanProgress>("scan-progress", (event) => {
-      updateProgress(event.payload);
-    }).then((removeListener) => {
+    void Promise.all([
+      listen<ScanProgress>("scan-progress", (event) => {
+        updateProgress(event.payload);
+      }),
+      listen<ScanSummary>("scan-restored", (event) => {
+        queryClient.setQueryData(currentScanQuery.queryKey, event.payload);
+      }),
+    ]).then((listeners) => {
       if (disposed) {
-        removeListener();
+        for (const unlisten of listeners) unlisten();
         return;
       }
-
-      unlisten = removeListener;
+      unlisteners.push(...listeners);
     });
 
     return () => {
       disposed = true;
-      unlisten?.();
+      for (const unlisten of unlisteners) unlisten();
     };
   }, [updateProgress]);
 

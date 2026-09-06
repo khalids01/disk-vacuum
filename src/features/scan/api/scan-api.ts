@@ -17,6 +17,7 @@ export type ScanCategory =
 export type ScanErrorCode =
   | "scan_cancelled"
   | "scan_failed"
+  | "scan_persistence_failed"
   | "scan_already_running"
   | "state_unavailable";
 
@@ -33,7 +34,10 @@ export interface ScanCapacity {
   reservedSpaceBytes: number;
 }
 
+export type ScanProgressStage = "scanning" | "saving";
+
 export interface ScanProgress {
+  stage: ScanProgressStage;
   targetLabel: string;
   entriesVisited: number;
   bytesObserved: number;

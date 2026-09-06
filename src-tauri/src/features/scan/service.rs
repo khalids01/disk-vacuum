@@ -23,7 +23,7 @@ use crate::{
         model::{
             CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
             ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-            ScanProgress, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
+            ScanProgress, ScanProgressStage, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
         search::{node_path, search_completed_scan},
         treemap::build_treemap_summary,
@@ -42,6 +42,7 @@ type ScanResult<T> = Result<T, ScanFailure>;
 enum ScanFailure {
     Cancelled,
     Message(&'static str),
+    Persistence(String),
 }
 
 impl From<ScanFailure> for ScanCommandError {
@@ -49,6 +50,7 @@ impl From<ScanFailure> for ScanCommandError {
         match error {
             ScanFailure::Cancelled => Self::new("scan_cancelled", "The scan was cancelled."),
             ScanFailure::Message(message) => Self::new("scan_failed", message),
+            ScanFailure::Persistence(message) => Self::new("scan_persistence_failed", &message),
         }
     }
 }
@@ -149,6 +151,7 @@ impl ScanAccumulator {
             let _ = app_handle.emit(
                 PROGRESS_EVENT_NAME,
                 ScanProgress {
+                    stage: super::model::ScanProgressStage::Scanning,
                     target_label: self.target_label.clone(),
                     entries_visited: self.entries_visited.load(Ordering::Relaxed),
                     bytes_observed: self.total_size_bytes.load(Ordering::Relaxed),
@@ -258,8 +261,15 @@ pub async fn scan_home_directory(
 ) -> Result<ScanSummary, ScanCommandError> {
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
+    let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_home_directory_blocking(app_handle, cancellation)
+        let saving_app_handle = app_handle.clone();
+        let completed = scan_home_directory_blocking(app_handle, cancellation)?;
+        emit_scan_saving(&saving_app_handle, &completed.summary);
+        repository
+            .save_completed_scan(&completed)
+            .map_err(ScanFailure::Persistence)?;
+        Ok::<CompletedScan, ScanFailure>(completed)
     })
     .await;
 
@@ -277,8 +287,15 @@ pub async fn scan_system_storage(
 ) -> Result<ScanSummary, ScanCommandError> {
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
+    let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_system_storage_blocking(app_handle, cancellation)
+        let saving_app_handle = app_handle.clone();
+        let completed = scan_system_storage_blocking(app_handle, cancellation)?;
+        emit_scan_saving(&saving_app_handle, &completed.summary);
+        repository
+            .save_completed_scan(&completed)
+            .map_err(ScanFailure::Persistence)?;
+        Ok::<CompletedScan, ScanFailure>(completed)
     })
     .await;
 
@@ -297,8 +314,15 @@ pub async fn scan_directory_path(
 ) -> Result<ScanSummary, ScanCommandError> {
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
+    let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_selected_directory_blocking(path, app_handle, cancellation)
+        let saving_app_handle = app_handle.clone();
+        let completed = scan_selected_directory_blocking(path, app_handle, cancellation)?;
+        emit_scan_saving(&saving_app_handle, &completed.summary);
+        repository
+            .save_completed_scan(&completed)
+            .map_err(ScanFailure::Persistence)?;
+        Ok::<CompletedScan, ScanFailure>(completed)
     })
     .await;
 
@@ -514,6 +538,20 @@ fn finish_active_scan(state: &AppState, scan_id: u64) -> Result<(), ScanCommandE
     }
 
     Ok(())
+}
+
+fn emit_scan_saving(app_handle: &AppHandle, summary: &ScanSummary) {
+    let _ = app_handle.emit(
+        PROGRESS_EVENT_NAME,
+        ScanProgress {
+            stage: ScanProgressStage::Saving,
+            target_label: summary.target_label.clone(),
+            entries_visited: summary.file_count + summary.directory_count,
+            bytes_observed: summary.total_size_bytes,
+            elapsed_milliseconds: 0,
+            capacity: summary.capacity.clone(),
+        },
+    );
 }
 
 fn store_completed_scan(

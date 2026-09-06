@@ -1927,6 +1927,8 @@ Use a small Tauri store / JSON-backed settings mechanism first.
 Do not add SQLite merely because a desktop app “should have a database”.
 
 Add a database only when there is a clear need.
+
+The completed scan index now has that need: users expect millions of scanned items to survive an app restart. Store the last completed scan atomically in app-private SQLite through the Rust repository layer, restore it in the background at startup, and keep the live index in Rust memory for responsive browsing. Settings can remain in their simpler store until their requirements justify moving them.
 ⸻ 35. Platform-Specific Requirements
 
 35.1 macOS first-class support

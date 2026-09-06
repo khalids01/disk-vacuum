@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 5 — Search**
-- Current task: **Review Global Search on Linux**
+- Current phase: **Backend Phase 2 — Durable scan persistence**
+- Current task: **Review restart restoration on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -458,6 +458,9 @@ Only create when needed.
 - [x] Cancellation
 - [x] Atomic completed-state replacement
 - [x] Previous scan preserved on new-scan failure
+- [x] Completed scan persisted atomically to SQLite
+- [x] Saved scan restored after app restart
+- [x] Versioned database schema and persistence test
 - [x] Frontend scan hook
 - [x] Frontend scan progress
 - [ ] macOS tested
