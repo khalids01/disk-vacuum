@@ -103,7 +103,7 @@ pub struct ScanCategorySummary {
     pub file_count: u64,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ScanNodeKind {
     File,
@@ -208,6 +208,59 @@ pub struct ScanSearchResponse {
     pub results: Vec<ScanSearchResult>,
     pub superseded: bool,
     pub elapsed_milliseconds: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LargeFilesQuery {
+    pub minimum_size_bytes: u64,
+    pub category: Option<ScanCategory>,
+    pub extension: Option<String>,
+    pub modified_before_unix_seconds: Option<u64>,
+    pub sort: LargeFileSort,
+    pub offset: usize,
+    pub limit: usize,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LargeFileSort {
+    SizeDescending,
+    ModifiedNewest,
+    ModifiedOldest,
+    NameAscending,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LargeFileSafety {
+    LikelySafe,
+    Review,
+    Protected,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LargeFileItem {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub name: String,
+    pub path: String,
+    pub parent_path: String,
+    pub extension: Option<String>,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+    pub category: ScanCategory,
+    pub safety: LargeFileSafety,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LargeFilesPage {
+    pub total_count: usize,
+    pub total_size_bytes: u64,
+    pub offset: usize,
+    pub items: Vec<LargeFileItem>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

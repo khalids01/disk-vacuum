@@ -20,10 +20,12 @@ use crate::{
         capacity::scan_capacity,
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
+        large_files::query_large_files,
         model::{
-            CompletedScan, ScanCapacity, ScanCategory, ScanCategorySummary, ScanCommandError,
-            ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-            ScanProgress, ScanProgressStage, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
+            CompletedScan, LargeFilesPage, LargeFilesQuery, ScanCapacity, ScanCategory,
+            ScanCategorySummary, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
+            ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage,
+            ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
         search::{node_path, search_completed_scan},
         treemap::build_treemap_summary,
@@ -396,6 +398,25 @@ pub fn get_scan_treemap(
         .ok_or_else(|| "Complete a scan before viewing its space map.".to_owned())?;
 
     build_treemap_summary(completed_scan, directory_id, max_nodes)
+}
+
+#[tauri::command]
+pub async fn get_large_files(
+    request: LargeFilesQuery,
+    state: State<'_, AppState>,
+) -> Result<LargeFilesPage, String> {
+    let completed_scan = Arc::clone(&state.completed_scan);
+    tauri::async_runtime::spawn_blocking(move || {
+        let completed_scan = completed_scan
+            .lock()
+            .map_err(|_| "DiskVacuum could not read its scan index.".to_owned())?;
+        let completed_scan = completed_scan
+            .as_ref()
+            .ok_or_else(|| "Complete a scan before viewing large files.".to_owned())?;
+        Ok(query_large_files(completed_scan, &request))
+    })
+    .await
+    .map_err(|_| "DiskVacuum could not finish querying large files.".to_owned())?
 }
 
 #[tauri::command]

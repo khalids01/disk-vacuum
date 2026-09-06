@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 2 — Durable scan persistence**
-- Current task: **Review restart restoration on Linux**
+- Current phase: **Backend Phase 6 — Large Files**
+- Current task: **Review Large Files on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -267,21 +267,21 @@ Only create when needed.
 
 # Phase 10 — Large Files UI
 
-- [ ] Header
-- [ ] Total large-file metric
-- [ ] Selected metric
-- [ ] Threshold control
-- [ ] Type filter
-- [ ] Size filter
-- [ ] Age filter
-- [ ] Sort
-- [ ] Desktop table
-- [ ] Review/safety states
-- [ ] Selection
-- [ ] Row actions
-- [ ] Empty state
-- [ ] Mobile list layout
-- [ ] Large dataset virtualization strategy
+- [x] Header
+- [x] Total large-file metric
+- [x] Selected metric
+- [x] Threshold control
+- [x] Type filter
+- [x] Size filter
+- [x] Age filter
+- [x] Sort
+- [x] Desktop table
+- [x] Review/safety states
+- [x] Selection
+- [x] Row actions
+- [x] Empty state
+- [x] Mobile list layout
+- [x] Large dataset virtualization strategy
 
 ---
 
@@ -507,13 +507,13 @@ Only create when needed.
 
 # Backend Phase 6 — Large Files
 
-- [ ] Minimum-size query
-- [ ] Filters
-- [ ] Sort
-- [ ] Pagination
-- [ ] Safety classification
-- [ ] Wire page
-- [ ] Large dataset tested
+- [x] Minimum-size query
+- [x] Filters
+- [x] Sort
+- [x] Pagination
+- [x] Safety classification
+- [x] Wire page
+- [x] Large dataset tested
 
 ---
 
