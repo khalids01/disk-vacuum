@@ -344,6 +344,7 @@ impl ScanRepository {
                 return Ok(());
             }
             if q.category.is_some_and(|c| c != n.category)
+                || q.safety.is_some_and(|value| value != safety(n.category))
                 || q.modified_before_unix_seconds
                     .is_some_and(|v| n.modified_at_unix_seconds.is_none_or(|m| m > v))
             {
@@ -707,6 +708,14 @@ mod tests {
                         category: ScanCategory::Documents,
                         modified_at_unix_seconds: Some(5),
                     },
+                    ScanNodeSummary {
+                        id: 4,
+                        name: "system.img".into(),
+                        kind: ScanNodeKind::File,
+                        size_bytes: 800,
+                        category: ScanCategory::System,
+                        modified_at_unix_seconds: Some(8),
+                    },
                 ],
             })
             .unwrap();
@@ -741,7 +750,7 @@ mod tests {
             repo.load_scan_summary().unwrap().unwrap().target_label,
             "Home"
         );
-        assert_eq!(repo.directory(1, 0, 100).unwrap().items.len(), 2);
+        assert_eq!(repo.directory(1, 0, 100).unwrap().items.len(), 3);
         assert_eq!(
             repo.node_details(1, 2).unwrap().path,
             "/home/tester/Documents/movie.mkv"
@@ -751,6 +760,7 @@ mod tests {
             .large_files(&LargeFilesQuery {
                 minimum_size_bytes: 500,
                 category: None,
+                safety: None,
                 extension: Some("mkv".into()),
                 modified_before_unix_seconds: None,
                 sort: LargeFileSort::SizeDescending,
@@ -760,6 +770,25 @@ mod tests {
             .unwrap();
         assert_eq!(large.total_count, 1);
         assert_eq!(large.items[0].name, "movie.mkv");
+
+        let protected = repo
+            .large_files(&LargeFilesQuery {
+                minimum_size_bytes: 1,
+                category: None,
+                safety: Some(LargeFileSafety::Protected),
+                extension: None,
+                modified_before_unix_seconds: None,
+                sort: LargeFileSort::SizeDescending,
+                offset: 0,
+                limit: 50,
+            })
+            .unwrap();
+        assert_eq!(protected.total_count, 1);
+        assert_eq!(protected.items[0].name, "system.img");
+        assert!(matches!(
+            protected.items[0].safety,
+            LargeFileSafety::Protected
+        ));
         fs::remove_dir_all(path).unwrap();
     }
 

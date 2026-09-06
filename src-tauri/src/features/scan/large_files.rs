@@ -45,6 +45,12 @@ pub fn query_large_files(
             }) {
                 continue;
             }
+            if query
+                .safety
+                .is_some_and(|selected| selected != classify_safety(node.category))
+            {
+                continue;
+            }
             if query.modified_before_unix_seconds.is_some_and(|cutoff| {
                 node.modified_at_unix_seconds
                     .is_none_or(|modified| modified > cutoff)
@@ -215,6 +221,7 @@ mod tests {
             &LargeFilesQuery {
                 minimum_size_bytes: 400,
                 category: Some(ScanCategory::Caches),
+                safety: Some(LargeFileSafety::LikelySafe),
                 extension: Some(".BIN".into()),
                 modified_before_unix_seconds: Some(15),
                 sort: LargeFileSort::SizeDescending,
@@ -246,6 +253,7 @@ mod tests {
             &LargeFilesQuery {
                 minimum_size_bytes: 1,
                 category: None,
+                safety: None,
                 extension: None,
                 modified_before_unix_seconds: None,
                 sort: LargeFileSort::SizeDescending,

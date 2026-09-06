@@ -218,6 +218,7 @@ pub struct LargeFilesQuery {
     pub category: Option<ScanCategory>,
     pub extension: Option<String>,
     pub modified_before_unix_seconds: Option<u64>,
+    pub safety: Option<LargeFileSafety>,
     pub sort: LargeFileSort,
     pub offset: usize,
     pub limit: usize,
@@ -232,7 +233,7 @@ pub enum LargeFileSort {
     NameAscending,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum LargeFileSafety {
     LikelySafe,

@@ -13,6 +13,15 @@ import { PageHeader } from "@/components/core/page-header";
 import { PathText } from "@/components/core/path-text";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type {
   LargeFileItem,
   LargeFileSafety,
@@ -69,6 +78,7 @@ function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
   const [thresholdMb, setThresholdMb] = useState(100);
   const [category, setCategory] = useState<ScanCategory | "all">("all");
   const [extension, setExtension] = useState("");
+  const [safety, setSafety] = useState<LargeFileSafety | "all">("all");
   const [debouncedExtension, setDebouncedExtension] = useState("");
   const [ageDays, setAgeDays] = useState(0);
   const [sort, setSort] = useState<LargeFileSort>("sizeDescending");
@@ -95,6 +105,7 @@ function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
     largeFilesQuery(scanVersion, {
       minimumSizeBytes: thresholdMb * MEBIBYTE,
       category: category === "all" ? null : category,
+      safety: safety === "all" ? null : safety,
       extension: debouncedExtension || null,
       modifiedBeforeUnixSeconds,
       sort,
@@ -162,79 +173,92 @@ function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
       </div>
 
       <SectionCard className="overflow-hidden">
-        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-5 lg:p-5">
+        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5 xl:grid-cols-6">
           <Filter label="Minimum size">
-            <select
-              value={thresholdMb}
-              onChange={(event) => {
-                setThresholdMb(Number(event.target.value));
+            <FilterSelect
+              value={String(thresholdMb)}
+              onValueChange={(value) => {
+                setThresholdMb(Number(value));
                 resetPage();
               }}
-              className={selectClass}
-            >
-              <option value={100}>100 MB</option>
-              <option value={500}>500 MB</option>
-              <option value={1024}>1 GB</option>
-              <option value={5120}>5 GB</option>
-            </select>
+              options={[
+                { value: "100", label: "100 MB" },
+                { value: "500", label: "500 MB" },
+                { value: "1024", label: "1 GB" },
+                { value: "5120", label: "5 GB" },
+              ]}
+            />
           </Filter>
           <Filter label="Type / extension">
-            <input
+            <Input
               value={extension}
               onChange={(event) => {
                 setExtension(event.target.value);
                 resetPage();
               }}
               placeholder="e.g. iso, zip"
-              className={selectClass}
             />
           </Filter>
           <Filter label="Category">
-            <select
+            <FilterSelect
               value={category}
-              onChange={(event) => {
-                setCategory(event.target.value as ScanCategory | "all");
+              onValueChange={(value) => {
+                setCategory(value as ScanCategory | "all");
                 resetPage();
               }}
-              className={selectClass}
-            >
-              <option value="all">All categories</option>
-              {CATEGORY_OPTIONS.map((value) => (
-                <option key={value} value={value}>
-                  {formatScanCategory(value)}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "all", label: "All categories" },
+                ...CATEGORY_OPTIONS.map((value) => ({
+                  value,
+                  label: formatScanCategory(value),
+                })),
+              ]}
+            />
+          </Filter>
+          <Filter label="Safety">
+            <FilterSelect
+              value={safety}
+              onValueChange={(value) => {
+                setSafety(value as LargeFileSafety | "all");
+                resetPage();
+              }}
+              options={[
+                { value: "all", label: "All safety levels" },
+                { value: "likelySafe", label: "Likely safe to remove" },
+                { value: "review", label: "Needs review" },
+                { value: "protected", label: "Protected / critical" },
+              ]}
+            />
           </Filter>
           <Filter label="Age">
-            <select
-              value={ageDays}
-              onChange={(event) => {
-                setAgeDays(Number(event.target.value));
+            <FilterSelect
+              value={String(ageDays)}
+              onValueChange={(value) => {
+                setAgeDays(Number(value));
                 resetPage();
               }}
-              className={selectClass}
-            >
-              <option value={0}>Any age</option>
-              <option value={30}>Older than 30 days</option>
-              <option value={180}>Older than 6 months</option>
-              <option value={365}>Older than 1 year</option>
-            </select>
+              options={[
+                { value: "0", label: "Any age" },
+                { value: "30", label: "Older than 30 days" },
+                { value: "180", label: "Older than 6 months" },
+                { value: "365", label: "Older than 1 year" },
+              ]}
+            />
           </Filter>
           <Filter label="Sort">
-            <select
+            <FilterSelect
               value={sort}
-              onChange={(event) => {
-                setSort(event.target.value as LargeFileSort);
+              onValueChange={(value) => {
+                setSort(value as LargeFileSort);
                 resetPage();
               }}
-              className={selectClass}
-            >
-              <option value="sizeDescending">Largest first</option>
-              <option value="modifiedNewest">Newest modified</option>
-              <option value="modifiedOldest">Oldest modified</option>
-              <option value="nameAscending">Name A–Z</option>
-            </select>
+              options={[
+                { value: "sizeDescending", label: "Largest first" },
+                { value: "modifiedNewest", label: "Newest modified" },
+                { value: "modifiedOldest", label: "Oldest modified" },
+                { value: "nameAscending", label: "Name A–Z" },
+              ]}
+            />
           </Filter>
         </div>
 
@@ -340,8 +364,40 @@ function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
   );
 }
 
-const selectClass =
-  "h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+interface FilterSelectOption {
+  value: string;
+  label: string;
+}
+
+function FilterSelect({
+  value,
+  onValueChange,
+  options,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  options: FilterSelectOption[];
+}) {
+  return (
+    <Select
+      value={value}
+      onValueChange={(nextValue) => {
+        if (nextValue !== null) onValueChange(nextValue);
+      }}
+    >
+      <SelectTrigger className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start">
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 function Filter({
   label,
@@ -451,8 +507,7 @@ function Selection({
 }: Pick<RowProps, "item" | "selected" | "onToggle">) {
   const protectedItem = item.safety === "protected";
   return (
-    <input
-      type="checkbox"
+    <Checkbox
       checked={selected}
       disabled={protectedItem}
       aria-label={
@@ -460,8 +515,7 @@ function Selection({
           ? `${item.name} is protected`
           : `Select ${item.name} for review`
       }
-      className="size-4 accent-primary"
-      onChange={() => onToggle(item)}
+      onCheckedChange={() => onToggle(item)}
     />
   );
 }

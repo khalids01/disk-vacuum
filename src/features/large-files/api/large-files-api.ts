@@ -31,6 +31,7 @@ export interface LargeFilesPage {
 export interface LargeFilesQueryInput {
   minimumSizeBytes: number;
   category: ScanCategory | null;
+  safety: LargeFileSafety | null;
   extension: string | null;
   modifiedBeforeUnixSeconds: number | null;
   sort: LargeFileSort;
