@@ -16,10 +16,15 @@ use std::{
 const SCHEMA_VERSION: i64 = 2;
 const DATABASE_FILE_NAME: &str = "disk-vacuum.sqlite3";
 const MAX_PAGE_SIZE: usize = 200;
-const SCAN_WRITE_QUEUE_SIZE: usize = 128;
+const SCAN_WRITE_QUEUE_SIZE: usize = 64;
+const NODE_BATCH_SIZE: usize = 512;
+const DATABASE_INSERT_BATCH_SIZE: usize = 256;
 
 enum ScanWriteMessage {
-    Directory(crate::features::scan::model::ScanDirectoryRecord),
+    NodeBatch {
+        parent_id: u64,
+        nodes: Vec<ScanNodeSummary>,
+    },
     Complete {
         root_path: PathBuf,
         summary: ScanSummary,
@@ -36,11 +41,24 @@ impl ScanWriteSession {
         &self,
         directory: crate::features::scan::model::ScanDirectoryRecord,
     ) -> Result<(), String> {
-        self.sender
+        let sender = self
+            .sender
             .as_ref()
-            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?
-            .send(ScanWriteMessage::Directory(directory))
-            .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())
+            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?;
+        let parent_id = directory.id;
+        let mut nodes = directory.children.into_iter();
+        loop {
+            let batch = nodes.by_ref().take(NODE_BATCH_SIZE).collect::<Vec<_>>();
+            if batch.is_empty() {
+                return Ok(());
+            }
+            sender
+                .send(ScanWriteMessage::NodeBatch {
+                    parent_id,
+                    nodes: batch,
+                })
+                .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())?;
+        }
     }
 
     pub fn finish(mut self, root_path: PathBuf, summary: ScanSummary) -> Result<(), String> {
@@ -447,7 +465,27 @@ fn stream_scan_to_database(
     ready: SyncSender<Result<(), String>>,
 ) -> Result<(), String> {
     let mut connection = Connection::open(database_path).map_err(db_error)?;
-    connection.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=NORMAL;PRAGMA temp_store=FILE;PRAGMA cache_size=-32768;").map_err(db_error)?;
+    connection
+        .execute_batch(
+            "PRAGMA journal_mode=WAL;
+         PRAGMA synchronous=NORMAL;
+         PRAGMA temp_store=FILE;
+         PRAGMA cache_size=-32768;
+         PRAGMA wal_autocheckpoint=0;
+         PRAGMA threads=4;
+         DROP TABLE IF EXISTS nodes_staging;
+         CREATE TABLE nodes_staging(
+             id INTEGER PRIMARY KEY,
+             parent_id INTEGER,
+             name TEXT NOT NULL,
+             kind INTEGER NOT NULL,
+             size_bytes INTEGER NOT NULL,
+             category INTEGER NOT NULL,
+             modified_at INTEGER
+         );",
+        )
+        .map_err(db_error)?;
+
     let transaction = match connection.transaction().map_err(db_error) {
         Ok(transaction) => transaction,
         Err(error) => {
@@ -455,76 +493,116 @@ fn stream_scan_to_database(
             return Err(error);
         }
     };
-    transaction
-        .execute_batch(
-            "DROP INDEX IF EXISTS nodes_category_size; DROP INDEX IF EXISTS nodes_modified;",
-        )
-        .map_err(db_error)?;
-    if let Err(error) = transaction
-        .execute("DELETE FROM nodes", [])
-        .map_err(db_error)
-    {
-        let _ = ready.send(Err(error.clone()));
-        return Err(error);
-    }
-    if let Err(error) = transaction
-        .execute("DELETE FROM completed_scan", [])
-        .map_err(db_error)
-    {
-        let _ = ready.send(Err(error.clone()));
-        return Err(error);
-    }
     ready
         .send(Ok(()))
         .map_err(|_| "The scanner stopped while the index writer was starting.".to_owned())?;
 
-    let mut statement = transaction.prepare_cached("INSERT INTO nodes (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(db_error)?;
     let (root_path, summary) = loop {
         match receiver.recv() {
-            Ok(ScanWriteMessage::Directory(directory)) => {
-                for node in directory.children {
-                    statement
-                        .execute(params![
-                            to_i64(node.id),
-                            to_i64(directory.id),
-                            node.name,
-                            kind_value(node.kind),
-                            to_i64(node.size_bytes),
-                            category_value(node.category),
-                            node.modified_at_unix_seconds.map(to_i64)
-                        ])
-                        .map_err(db_error)?;
-                }
+            Ok(ScanWriteMessage::NodeBatch { parent_id, nodes }) => {
+                insert_node_batches(&transaction, parent_id, nodes)?;
             }
             Ok(ScanWriteMessage::Complete { root_path, summary }) => break (root_path, summary),
-            Err(_) => return Err("The scan ended before its index was complete.".to_owned()),
+            Err(_) => {
+                drop(transaction);
+                connection
+                    .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
+                    .map_err(db_error)?;
+                return Err("The scan ended before its index was complete.".to_owned());
+            }
         }
     };
-    statement
-        .execute(params![
-            to_i64(summary.root_directory_id),
-            Option::<i64>::None,
-            &summary.target_label,
-            1_i64,
-            to_i64(summary.total_size_bytes),
-            category_value(ScanCategory::Other),
-            Option::<i64>::None
-        ])
+
+    transaction
+        .execute(
+            "INSERT INTO nodes_staging (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES (?1,NULL,?2,1,?3,?4,NULL)",
+            params![
+                to_i64(summary.root_directory_id),
+                &summary.target_label,
+                to_i64(summary.total_size_bytes),
+                category_value(ScanCategory::Other)
+            ],
+        )
         .map_err(db_error)?;
-    drop(statement);
+    transaction.commit().map_err(db_error)?;
+
     let summary_json = serde_json::to_string(&summary)
         .map_err(|e| format!("Could not encode the scan summary: {e}"))?;
-    transaction
+    let finalize = connection.transaction().map_err(db_error)?;
+    finalize
+        .execute_batch(
+            "DROP TABLE nodes;
+             ALTER TABLE nodes_staging RENAME TO nodes;
+             CREATE INDEX nodes_parent_size ON nodes(parent_id,size_bytes DESC);
+             CREATE INDEX nodes_file_size ON nodes(size_bytes DESC) WHERE kind=0;",
+        )
+        .map_err(db_error)?;
+    finalize
+        .execute("DELETE FROM completed_scan", [])
+        .map_err(db_error)?;
+    finalize
         .execute(
             "INSERT INTO completed_scan (id,root_path,summary_json) VALUES (1,?1,?2)",
             params![root_path.to_string_lossy(), summary_json],
         )
         .map_err(db_error)?;
-    transaction.commit().map_err(db_error)?;
+    finalize.commit().map_err(db_error)?;
+
     connection
         .execute_batch("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;")
         .map_err(db_error)?;
+    connection
+        .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
+        .map_err(db_error)?;
     Ok(())
+}
+
+fn insert_node_batches(
+    transaction: &rusqlite::Transaction<'_>,
+    parent_id: u64,
+    nodes: Vec<ScanNodeSummary>,
+) -> Result<(), String> {
+    let mut nodes = nodes.into_iter();
+    loop {
+        let batch = nodes
+            .by_ref()
+            .take(DATABASE_INSERT_BATCH_SIZE)
+            .collect::<Vec<_>>();
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        let mut sql = String::from(
+            "INSERT INTO nodes_staging (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES ",
+        );
+        for index in 0..batch.len() {
+            if index > 0 {
+                sql.push(',');
+            }
+            sql.push_str("(?,?,?,?,?,?,?)");
+        }
+
+        let mut values = Vec::with_capacity(batch.len() * 7);
+        for node in batch {
+            values.push(Value::Integer(to_i64(node.id)));
+            values.push(Value::Integer(to_i64(parent_id)));
+            values.push(Value::Text(node.name));
+            values.push(Value::Integer(kind_value(node.kind)));
+            values.push(Value::Integer(to_i64(node.size_bytes)));
+            values.push(Value::Integer(category_value(node.category)));
+            values.push(
+                node.modified_at_unix_seconds
+                    .map(to_i64)
+                    .map(Value::Integer)
+                    .unwrap_or(Value::Null),
+            );
+        }
+        transaction
+            .prepare_cached(&sql)
+            .map_err(db_error)?
+            .execute(params_from_iter(values.iter()))
+            .map_err(db_error)?;
+    }
 }
 
 fn migrate(connection: &Connection) -> Result<(), String> {
@@ -539,6 +617,9 @@ fn migrate(connection: &Connection) -> Result<(), String> {
     if version < 2 {
         connection.execute_batch("BEGIN;DROP TABLE IF EXISTS scan_directories;DROP TABLE IF EXISTS nodes;DROP TABLE IF EXISTS completed_scan;CREATE TABLE completed_scan(id INTEGER PRIMARY KEY CHECK(id=1),root_path TEXT NOT NULL,summary_json TEXT NOT NULL);CREATE TABLE nodes(id INTEGER PRIMARY KEY,parent_id INTEGER,name TEXT NOT NULL,kind INTEGER NOT NULL,size_bytes INTEGER NOT NULL,category INTEGER NOT NULL,modified_at INTEGER);CREATE INDEX nodes_parent_size ON nodes(parent_id,size_bytes DESC);CREATE INDEX nodes_file_size ON nodes(size_bytes DESC) WHERE kind=0;CREATE INDEX nodes_category_size ON nodes(category,size_bytes DESC) WHERE kind=0;CREATE INDEX nodes_modified ON nodes(modified_at) WHERE kind=0;PRAGMA user_version=2;COMMIT;PRAGMA wal_checkpoint(TRUNCATE);VACUUM;").map_err(|e|format!("Could not replace the obsolete scan-cache schema: {e}"))?;
     }
+    connection
+        .execute_batch("DROP TABLE IF EXISTS nodes_staging;")
+        .map_err(db_error)?;
     Ok(())
 }
 fn identity(c: &Connection, id: u64) -> Result<(Option<u64>, String, ScanNodeKind), String> {
@@ -778,6 +859,52 @@ mod tests {
         assert_eq!(result.items[0].path, "/home/tester/Documents/Movie.MKV");
         fs::remove_dir_all(path).unwrap();
     }
+    #[test]
+    fn completed_stream_atomically_replaces_the_index_with_two_query_indexes() {
+        let path = temp_path("stream-complete");
+        let repository = ScanRepository::open(&path).unwrap();
+        repository.save_completed_scan(&fixture()).unwrap();
+
+        let replacement = fixture();
+        let session = repository.begin_scan_write().unwrap();
+        for directory in replacement.directories.into_values() {
+            session.write_directory(directory).unwrap();
+        }
+        session
+            .finish(replacement.root_path, replacement.summary)
+            .unwrap();
+
+        assert_eq!(
+            repository
+                .load_scan_summary()
+                .unwrap()
+                .unwrap()
+                .target_label,
+            "Home"
+        );
+        let connection = Connection::open(path.join("disk-vacuum.sqlite3")).unwrap();
+        let staging_exists: bool = connection
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='nodes_staging')",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(!staging_exists);
+        let mut statement = connection
+            .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='nodes' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+            .unwrap();
+        let indexes = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(indexes, vec!["nodes_file_size", "nodes_parent_size"]);
+        drop(statement);
+        drop(connection);
+        fs::remove_dir_all(path).unwrap();
+    }
+
     #[test]
     fn abandoned_stream_keeps_the_previous_completed_scan() {
         let path = temp_path("rollback");
