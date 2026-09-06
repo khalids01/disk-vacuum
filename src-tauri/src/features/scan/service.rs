@@ -1,6 +1,6 @@
 use std::{
     cmp::Reverse,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     env, fs,
     path::{Path, PathBuf},
     sync::{
@@ -27,6 +27,7 @@ use crate::{
             ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
     },
+    scan_repository::{ScanRepository, ScanWriteSession},
 };
 
 const MAX_TOP_LEVEL_ITEMS: usize = 24;
@@ -77,7 +78,7 @@ struct ScanAccumulator {
     category_file_counts: [AtomicU64; CATEGORY_COUNT],
     top_level_items: Mutex<Vec<ScanNodeSummary>>,
     next_node_id: AtomicU64,
-    directories: Mutex<HashMap<u64, ScanDirectoryRecord>>,
+    index_writer: ScanWriteSession,
 }
 
 impl ScanAccumulator {
@@ -87,6 +88,7 @@ impl ScanAccumulator {
         target_label: &str,
         root_filesystem_id: Option<u64>,
         capacity: Option<ScanCapacity>,
+        index_writer: ScanWriteSession,
     ) -> Self {
         let started_at = Instant::now();
 
@@ -113,7 +115,7 @@ impl ScanAccumulator {
             category_file_counts: std::array::from_fn(|_| AtomicU64::new(0)),
             top_level_items: Mutex::new(Vec::with_capacity(MAX_TOP_LEVEL_ITEMS)),
             next_node_id: AtomicU64::new(1),
-            directories: Mutex::new(HashMap::new()),
+            index_writer,
         }
     }
 
@@ -226,22 +228,13 @@ impl ScanAccumulator {
         self.next_node_id.fetch_add(1, Ordering::Relaxed)
     }
 
-    fn record_directory(&self, mut directory: ScanDirectoryRecord) {
-        directory
-            .children
-            .sort_by_key(|item| Reverse(item.size_bytes));
-        self.directories
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .insert(directory.id, directory);
-    }
-
-    fn take_directories(&self) -> HashMap<u64, ScanDirectoryRecord> {
-        let mut directories = self
-            .directories
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        std::mem::take(&mut *directories)
+    fn record_directory(&self, directory: ScanDirectoryRecord) -> ScanResult<()> {
+        self.index_writer
+            .write_directory(directory)
+            .map_err(|error| {
+                self.cancellation.store(true, Ordering::Relaxed);
+                ScanFailure::Persistence(error)
+            })
     }
 }
 
@@ -262,13 +255,7 @@ pub async fn scan_home_directory(
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        let saving_app_handle = app_handle.clone();
-        let completed = scan_home_directory_blocking(app_handle, cancellation)?;
-        emit_scan_saving(&saving_app_handle, &completed.summary);
-        repository
-            .save_completed_scan(&completed)
-            .map_err(ScanFailure::Persistence)?;
-        Ok::<CompletedScan, ScanFailure>(completed)
+        scan_home_directory_blocking(app_handle, cancellation, repository)
     })
     .await;
 
@@ -288,13 +275,7 @@ pub async fn scan_system_storage(
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        let saving_app_handle = app_handle.clone();
-        let completed = scan_system_storage_blocking(app_handle, cancellation)?;
-        emit_scan_saving(&saving_app_handle, &completed.summary);
-        repository
-            .save_completed_scan(&completed)
-            .map_err(ScanFailure::Persistence)?;
-        Ok::<CompletedScan, ScanFailure>(completed)
+        scan_system_storage_blocking(app_handle, cancellation, repository)
     })
     .await;
 
@@ -315,13 +296,7 @@ pub async fn scan_directory_path(
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        let saving_app_handle = app_handle.clone();
-        let completed = scan_selected_directory_blocking(path, app_handle, cancellation)?;
-        emit_scan_saving(&saving_app_handle, &completed.summary);
-        repository
-            .save_completed_scan(&completed)
-            .map_err(ScanFailure::Persistence)?;
-        Ok::<CompletedScan, ScanFailure>(completed)
+        scan_selected_directory_blocking(path, app_handle, cancellation, repository)
     })
     .await;
 
@@ -500,6 +475,7 @@ fn store_completed_scan(
 fn scan_system_storage_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
+    repository: ScanRepository,
 ) -> ScanResult<CompletedScan> {
     let (system_root, capacity) = resolve_system_storage()?;
     scan_directory(
@@ -508,12 +484,14 @@ fn scan_system_storage_blocking(
         Some(app_handle),
         Some(capacity),
         cancellation,
+        repository,
     )
 }
 
 fn scan_home_directory_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
+    repository: ScanRepository,
 ) -> ScanResult<CompletedScan> {
     let home_directory = resolve_home_directory()?;
     scan_directory(
@@ -522,6 +500,7 @@ fn scan_home_directory_blocking(
         Some(app_handle),
         None,
         cancellation,
+        repository,
     )
 }
 
@@ -529,6 +508,7 @@ fn scan_selected_directory_blocking(
     path: String,
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
+    repository: ScanRepository,
 ) -> ScanResult<CompletedScan> {
     let selected_directory = validate_scan_root(Path::new(&path))?;
     let folder_name = selected_directory
@@ -543,6 +523,7 @@ fn scan_selected_directory_blocking(
         Some(app_handle),
         None,
         cancellation,
+        repository,
     )
 }
 
@@ -632,18 +613,23 @@ fn scan_directory(
     app_handle: Option<AppHandle>,
     capacity: Option<ScanCapacity>,
     cancellation: Arc<AtomicBool>,
+    repository: ScanRepository,
 ) -> ScanResult<CompletedScan> {
     const ROOT_DIRECTORY_ID: u64 = 0;
 
     let root_metadata = fs::metadata(root)
         .map_err(|_| ScanFailure::Message("The selected scan location is unavailable."))?;
     let root_filesystem_id = filesystem_id(&root_metadata);
+    let index_writer = repository
+        .begin_scan_write()
+        .map_err(ScanFailure::Persistence)?;
     let accumulator = Arc::new(ScanAccumulator::new(
         app_handle,
         cancellation,
         target_label,
         root_filesystem_id,
         capacity,
+        index_writer,
     ));
     accumulator.check_cancelled()?;
     accumulator.emit_progress(true);
@@ -692,7 +678,7 @@ fn scan_directory(
         parent_id: None,
         name: target_label.to_owned(),
         children: root_items,
-    });
+    })?;
     accumulator.emit_progress(true);
 
     let summary = ScanSummary {
@@ -720,10 +706,21 @@ fn scan_directory(
         categories: accumulator.category_summaries(),
     };
 
+    let root_path = root.to_path_buf();
+    let app_handle = accumulator.app_handle.clone();
+    let writer = Arc::into_inner(accumulator)
+        .ok_or_else(|| ScanFailure::Persistence("Scan workers did not shut down cleanly.".into()))?
+        .index_writer;
+    if let Some(app_handle) = app_handle {
+        emit_scan_saving(&app_handle, &summary);
+    }
+    writer
+        .finish(root_path.clone(), summary.clone())
+        .map_err(ScanFailure::Persistence)?;
     Ok(CompletedScan {
-        root_path: root.to_path_buf(),
+        root_path,
         summary,
-        directories: accumulator.take_directories(),
+        directories: Default::default(),
     })
 }
 
@@ -828,7 +825,7 @@ fn scan_entry(
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path.to_string_lossy().into_owned()),
             children,
-        });
+        })?;
         return Ok(Some(MeasuredEntry {
             id: node_id,
             kind: ScanNodeKind::Directory,
@@ -911,7 +908,7 @@ mod tests {
         time::SystemTime,
     };
 
-    use super::{allocated_size, scan_directory, ScanCapacity, ScanFailure};
+    use super::{allocated_size, scan_directory, ScanCapacity, ScanFailure, ScanRepository};
 
     fn unique_fixture_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -930,6 +927,8 @@ mod tests {
         fs::write(fixture.join("small.txt"), b"abc").expect("fixture file should be written");
         fs::write(fixture.join("nested").join("large.txt"), b"abcdefgh")
             .expect("fixture file should be written");
+        let repository_path = unique_fixture_path("scan-repository");
+        let repository = ScanRepository::open(&repository_path).expect("repository should open");
 
         let completed = scan_directory(
             &fixture,
@@ -943,6 +942,7 @@ mod tests {
                 reserved_space_bytes: 5,
             }),
             Arc::new(AtomicBool::new(false)),
+            repository.clone(),
         )
         .expect("fixture scan should succeed");
         let summary = &completed.summary;
@@ -986,14 +986,13 @@ mod tests {
             .top_level_items
             .iter()
             .all(|item| item.name != "large.txt"));
-        assert_eq!(completed.directories.len(), 2);
-        let root = completed
-            .directories
-            .get(&summary.root_directory_id)
+        let root = repository
+            .directory(summary.root_directory_id, 0, 100)
             .expect("root directory should be indexed");
-        assert_eq!(root.children.len(), 2);
+        assert_eq!(root.items.len(), 2);
 
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
+        fs::remove_dir_all(&repository_path).expect("repository should be removed");
     }
 
     #[cfg(unix)]
@@ -1003,6 +1002,8 @@ mod tests {
         fs::create_dir_all(&fixture).expect("fixture directory should be created");
         let original = fixture.join("original.bin");
         fs::write(&original, b"abcdefgh").expect("fixture file should be written");
+        let repository_path = unique_fixture_path("hard-link-repository");
+        let repository = ScanRepository::open(&repository_path).expect("repository should open");
         fs::hard_link(&original, fixture.join("linked.bin"))
             .expect("fixture hard link should be created");
 
@@ -1012,6 +1013,7 @@ mod tests {
             None,
             None,
             Arc::new(AtomicBool::new(false)),
+            repository,
         )
         .expect("fixture scan should succeed");
         let summary = &completed.summary;
@@ -1023,18 +1025,22 @@ mod tests {
         );
         assert_eq!(summary.skipped_hard_link_count, 1);
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
+        fs::remove_dir_all(&repository_path).expect("repository should be removed");
     }
 
     #[test]
     fn stops_before_traversal_when_cancellation_is_requested() {
         let fixture = unique_fixture_path("cancel-test");
         fs::create_dir_all(&fixture).expect("fixture directory should be created");
+        let repository_path = unique_fixture_path("cancel-repository");
+        let repository = ScanRepository::open(&repository_path).expect("repository should open");
         let cancellation = Arc::new(AtomicBool::new(false));
         cancellation.store(true, Ordering::Relaxed);
 
-        let result = scan_directory(&fixture, "Fixture", None, None, cancellation);
+        let result = scan_directory(&fixture, "Fixture", None, None, cancellation, repository);
 
         assert!(matches!(result, Err(ScanFailure::Cancelled)));
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");
+        fs::remove_dir_all(&repository_path).expect("repository should be removed");
     }
 }

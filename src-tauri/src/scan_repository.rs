@@ -1,18 +1,70 @@
+#[cfg(test)]
+use crate::features::scan::model::CompletedScan;
 use crate::features::scan::model::{
-    CompletedScan, LargeFileItem, LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery,
-    ScanCategory, ScanDirectoryPage, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-    ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
-    ScanTreemapSummary,
+    LargeFileItem, LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanCategory,
+    ScanDirectoryPage, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanSearchResponse,
+    ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind, ScanTreemapSummary,
 };
 use rusqlite::{params, params_from_iter, types::Value, Connection, OptionalExtension, Row};
 use std::{
     path::{Path, PathBuf},
+    sync::mpsc::{self, Receiver, SyncSender},
+    thread::{self, JoinHandle},
     time::Instant,
 };
 
 const SCHEMA_VERSION: i64 = 2;
 const DATABASE_FILE_NAME: &str = "disk-vacuum.sqlite3";
 const MAX_PAGE_SIZE: usize = 200;
+const SCAN_WRITE_QUEUE_SIZE: usize = 128;
+
+enum ScanWriteMessage {
+    Directory(crate::features::scan::model::ScanDirectoryRecord),
+    Complete {
+        root_path: PathBuf,
+        summary: ScanSummary,
+    },
+}
+
+pub struct ScanWriteSession {
+    sender: Option<SyncSender<ScanWriteMessage>>,
+    worker: Option<JoinHandle<Result<(), String>>>,
+}
+
+impl ScanWriteSession {
+    pub fn write_directory(
+        &self,
+        directory: crate::features::scan::model::ScanDirectoryRecord,
+    ) -> Result<(), String> {
+        self.sender
+            .as_ref()
+            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?
+            .send(ScanWriteMessage::Directory(directory))
+            .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())
+    }
+
+    pub fn finish(mut self, root_path: PathBuf, summary: ScanSummary) -> Result<(), String> {
+        self.sender
+            .take()
+            .ok_or_else(|| "The scan index writer has already finished.".to_owned())?
+            .send(ScanWriteMessage::Complete { root_path, summary })
+            .map_err(|_| "The scan index writer stopped unexpectedly.".to_owned())?;
+        self.worker
+            .take()
+            .ok_or_else(|| "The scan index writer has already stopped.".to_owned())?
+            .join()
+            .map_err(|_| "The scan index writer crashed.".to_owned())?
+    }
+}
+
+impl Drop for ScanWriteSession {
+    fn drop(&mut self) {
+        self.sender.take();
+        if let Some(worker) = self.worker.take() {
+            let _ = worker.join();
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct ScanRepository {
@@ -29,6 +81,7 @@ impl ScanRepository {
         migrate(&connection)?;
         Ok(repository)
     }
+    #[cfg(test)]
     pub fn save_completed_scan(&self, scan: &CompletedScan) -> Result<(), String> {
         let mut connection = self.connect()?;
         let transaction = connection.transaction().map_err(db_error)?;
@@ -84,6 +137,22 @@ impl ScanRepository {
             .execute_batch("PRAGMA wal_checkpoint(TRUNCATE); PRAGMA optimize;")
             .map_err(db_error)?;
         Ok(())
+    }
+    pub fn begin_scan_write(&self) -> Result<ScanWriteSession, String> {
+        let (sender, receiver) = mpsc::sync_channel(SCAN_WRITE_QUEUE_SIZE);
+        let (ready_sender, ready_receiver) = mpsc::sync_channel(1);
+        let database_path = self.database_path.clone();
+        let worker = thread::Builder::new()
+            .name("disk-vacuum-index-writer".into())
+            .spawn(move || stream_scan_to_database(&database_path, receiver, ready_sender))
+            .map_err(|e| format!("Could not start the scan index writer: {e}"))?;
+        ready_receiver
+            .recv()
+            .map_err(|_| "The scan index writer stopped during startup.".to_owned())??;
+        Ok(ScanWriteSession {
+            sender: Some(sender),
+            worker: Some(worker),
+        })
     }
     pub fn load_scan_summary(&self) -> Result<Option<ScanSummary>, String> {
         let connection = self.connect()?;
@@ -371,6 +440,93 @@ impl ScanRepository {
         Ok(connection)
     }
 }
+
+fn stream_scan_to_database(
+    database_path: &Path,
+    receiver: Receiver<ScanWriteMessage>,
+    ready: SyncSender<Result<(), String>>,
+) -> Result<(), String> {
+    let mut connection = Connection::open(database_path).map_err(db_error)?;
+    connection.execute_batch("PRAGMA journal_mode=WAL;PRAGMA synchronous=NORMAL;PRAGMA temp_store=FILE;PRAGMA cache_size=-32768;").map_err(db_error)?;
+    let transaction = match connection.transaction().map_err(db_error) {
+        Ok(transaction) => transaction,
+        Err(error) => {
+            let _ = ready.send(Err(error.clone()));
+            return Err(error);
+        }
+    };
+    transaction
+        .execute_batch(
+            "DROP INDEX IF EXISTS nodes_category_size; DROP INDEX IF EXISTS nodes_modified;",
+        )
+        .map_err(db_error)?;
+    if let Err(error) = transaction
+        .execute("DELETE FROM nodes", [])
+        .map_err(db_error)
+    {
+        let _ = ready.send(Err(error.clone()));
+        return Err(error);
+    }
+    if let Err(error) = transaction
+        .execute("DELETE FROM completed_scan", [])
+        .map_err(db_error)
+    {
+        let _ = ready.send(Err(error.clone()));
+        return Err(error);
+    }
+    ready
+        .send(Ok(()))
+        .map_err(|_| "The scanner stopped while the index writer was starting.".to_owned())?;
+
+    let mut statement = transaction.prepare_cached("INSERT INTO nodes (id,parent_id,name,kind,size_bytes,category,modified_at) VALUES (?1,?2,?3,?4,?5,?6,?7)").map_err(db_error)?;
+    let (root_path, summary) = loop {
+        match receiver.recv() {
+            Ok(ScanWriteMessage::Directory(directory)) => {
+                for node in directory.children {
+                    statement
+                        .execute(params![
+                            to_i64(node.id),
+                            to_i64(directory.id),
+                            node.name,
+                            kind_value(node.kind),
+                            to_i64(node.size_bytes),
+                            category_value(node.category),
+                            node.modified_at_unix_seconds.map(to_i64)
+                        ])
+                        .map_err(db_error)?;
+                }
+            }
+            Ok(ScanWriteMessage::Complete { root_path, summary }) => break (root_path, summary),
+            Err(_) => return Err("The scan ended before its index was complete.".to_owned()),
+        }
+    };
+    statement
+        .execute(params![
+            to_i64(summary.root_directory_id),
+            Option::<i64>::None,
+            &summary.target_label,
+            1_i64,
+            to_i64(summary.total_size_bytes),
+            category_value(ScanCategory::Other),
+            Option::<i64>::None
+        ])
+        .map_err(db_error)?;
+    drop(statement);
+    let summary_json = serde_json::to_string(&summary)
+        .map_err(|e| format!("Could not encode the scan summary: {e}"))?;
+    transaction
+        .execute(
+            "INSERT INTO completed_scan (id,root_path,summary_json) VALUES (1,?1,?2)",
+            params![root_path.to_string_lossy(), summary_json],
+        )
+        .map_err(db_error)?;
+    transaction.commit().map_err(db_error)?;
+    connection
+        .execute_batch("PRAGMA wal_checkpoint(PASSIVE); PRAGMA optimize;")
+        .map_err(db_error)?;
+    Ok(())
+}
+
 fn migrate(connection: &Connection) -> Result<(), String> {
     let version = connection
         .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
@@ -622,6 +778,43 @@ mod tests {
         assert_eq!(result.items[0].path, "/home/tester/Documents/Movie.MKV");
         fs::remove_dir_all(path).unwrap();
     }
+    #[test]
+    fn abandoned_stream_keeps_the_previous_completed_scan() {
+        let path = temp_path("rollback");
+        let repository = ScanRepository::open(&path).unwrap();
+        repository.save_completed_scan(&fixture()).unwrap();
+
+        let session = repository.begin_scan_write().unwrap();
+        session
+            .write_directory(ScanDirectoryRecord {
+                id: 0,
+                parent_id: None,
+                name: "Incomplete".into(),
+                children: vec![ScanNodeSummary {
+                    id: 99,
+                    name: "partial.bin".into(),
+                    kind: ScanNodeKind::File,
+                    size_bytes: 1,
+                    category: ScanCategory::Other,
+                    modified_at_unix_seconds: None,
+                }],
+            })
+            .unwrap();
+        drop(session);
+
+        assert_eq!(
+            repository
+                .load_scan_summary()
+                .unwrap()
+                .unwrap()
+                .target_label,
+            "Home"
+        );
+        assert!(repository.node_details(0, 99).is_err());
+        assert_eq!(repository.directory(1, 0, 100).unwrap().items.len(), 2);
+        fs::remove_dir_all(path).unwrap();
+    }
+
     #[test]
     fn version_one_json_cache_is_invalidated_by_schema_migration() {
         let path = temp_path("migration");

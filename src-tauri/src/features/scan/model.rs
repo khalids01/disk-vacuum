@@ -138,6 +138,7 @@ pub struct ScanDirectoryRecord {
     pub children: Vec<ScanNodeSummary>,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct CompletedScan {
     pub root_path: PathBuf,
     pub summary: ScanSummary,
