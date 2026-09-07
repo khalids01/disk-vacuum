@@ -1,6 +1,6 @@
 use crate::{
     app_state::AppState,
-    features::scan::model::{DuplicateFile, DuplicateGroup, DuplicateReport},
+    features::scan::model::{DuplicateFile, DuplicateGroup, DuplicateReport, ScanCategory},
 };
 use serde::Serialize;
 use std::{collections::HashSet, fs, fs::File, io::Read, path::Path};
@@ -328,4 +328,141 @@ mod tests {
             .contains("Symbolic links"));
         fs::remove_dir_all(base).unwrap();
     }
+}
+
+#[derive(Clone, Debug, serde::Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupTargetInput {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub path: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupTargetPreview {
+    pub ready: Vec<CleanupTargetInput>,
+    pub rejected: Vec<CleanupIssue>,
+    pub reclaimable_size_bytes: u64,
+}
+
+#[tauri::command]
+pub fn preview_cleanup_targets(
+    targets: Vec<CleanupTargetInput>,
+    state: State<'_, AppState>,
+) -> Result<CleanupTargetPreview, String> {
+    validate_targets(targets, &state)
+}
+
+#[tauri::command]
+pub async fn trash_cleanup_targets(
+    targets: Vec<CleanupTargetInput>,
+    state: State<'_, AppState>,
+) -> Result<CleanupResult, String> {
+    let preview = validate_targets(targets, &state)?;
+    if !preview.rejected.is_empty() {
+        return Err("Some selected locations failed safety validation.".into());
+    }
+    let outcomes = tauri::async_runtime::spawn_blocking(move || {
+        preview
+            .ready
+            .into_iter()
+            .map(|target| {
+                let result = trash::delete(&target.path).map_err(|error| error.to_string());
+                (target, result)
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|_| "The Trash operation stopped unexpectedly.".to_owned())?;
+    let mut moved_ids = Vec::new();
+    let mut failed = Vec::new();
+    let mut reclaimed_size_bytes = 0;
+    for (target, outcome) in outcomes {
+        match outcome {
+            Ok(()) => {
+                moved_ids.push(target.id);
+                reclaimed_size_bytes += target.size_bytes;
+            }
+            Err(reason) => failed.push(CleanupIssue {
+                id: target.id,
+                path: target.path,
+                reason,
+            }),
+        }
+    }
+    Ok(CleanupResult {
+        moved_ids,
+        failed,
+        reclaimed_size_bytes,
+    })
+}
+
+fn validate_targets(
+    targets: Vec<CleanupTargetInput>,
+    state: &AppState,
+) -> Result<CleanupTargetPreview, String> {
+    if targets.is_empty() {
+        return Err("Select at least one location.".into());
+    }
+    let root = fs::canonicalize(state.scan_repository.scan_root_path()?)
+        .map_err(|error| format!("The scanned root is no longer available: {error}"))?;
+    let mut seen = HashSet::new();
+    let mut ready = Vec::new();
+    let mut rejected = Vec::new();
+    for target in targets {
+        if !seen.insert(target.id) {
+            continue;
+        }
+        let validation = state
+            .scan_repository
+            .node_details(target.parent_directory_id, target.id)
+            .and_then(|indexed| {
+                if indexed.path != target.path || indexed.size_bytes != target.size_bytes {
+                    return Err("The selection no longer matches the saved scan.".into());
+                }
+                if indexed.category == ScanCategory::System {
+                    return Err("System files are protected from cleanup.".into());
+                }
+                validate_target_path(&root, &target.path, target.size_bytes)
+            });
+        match validation {
+            Ok(()) => ready.push(target),
+            Err(reason) => rejected.push(CleanupIssue {
+                id: target.id,
+                path: target.path,
+                reason,
+            }),
+        }
+    }
+    Ok(CleanupTargetPreview {
+        reclaimable_size_bytes: ready.iter().map(|item| item.size_bytes).sum(),
+        ready,
+        rejected,
+    })
+}
+
+fn validate_target_path(root: &Path, value: &str, expected_size: u64) -> Result<(), String> {
+    let path = Path::new(value);
+    let metadata =
+        fs::symlink_metadata(path).map_err(|error| format!("Location is unavailable: {error}"))?;
+    if metadata.file_type().is_symlink() {
+        return Err("Symbolic links are not eligible for cleanup.".into());
+    }
+    if !metadata.is_file() && !metadata.is_dir() {
+        return Err("The selected path is not a regular file or directory.".into());
+    }
+    if metadata.is_file() && metadata.len() != expected_size {
+        return Err("The file changed after the scan.".into());
+    }
+    let canonical =
+        fs::canonicalize(path).map_err(|error| format!("Path cannot be verified: {error}"))?;
+    if canonical == root || !canonical.starts_with(root) {
+        return Err("The path is outside the current scan scope.".into());
+    }
+    if protected_path(&canonical) {
+        return Err("This operating-system location is protected.".into());
+    }
+    Ok(())
 }

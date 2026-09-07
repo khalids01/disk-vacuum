@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
 import type {
   LargeFileItem,
   LargeFileSafety,
@@ -171,6 +172,39 @@ function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
           </p>
         </SectionCard>
       </div>
+
+      {selected.size > 0 && (
+        <SectionCard className="sticky top-0 z-20 flex flex-col gap-3 border-primary/25 bg-card/95 p-4 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">
+              {selected.size.toLocaleString()} files ·{" "}
+              {formatBytes(selectedSize)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Review is required before moving anything to Trash.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setSelected(new Map())}>
+              Clear
+            </Button>
+            <CleanupReviewDialog
+              items={[...selected.values()]}
+              title="Review large files"
+              onComplete={(result) =>
+                setSelected(
+                  (current) =>
+                    new Map(
+                      [...current].filter(
+                        ([id]) => !result.movedIds.includes(id),
+                      ),
+                    ),
+                )
+              }
+            />
+          </div>
+        </SectionCard>
+      )}
 
       <SectionCard className="overflow-hidden">
         <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5 xl:grid-cols-6">

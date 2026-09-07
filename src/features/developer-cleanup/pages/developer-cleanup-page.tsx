@@ -1,13 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  AlertTriangleIcon,
   CheckIcon,
   ChevronDownIcon,
   ClipboardIcon,
   FolderSearchIcon,
   RefreshCwIcon,
-  Trash2Icon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -17,22 +15,13 @@ import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CleanupReviewDialog as SafeCleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
 import type {
   DeveloperArtifactKind,
   DeveloperCleanupItem,
@@ -289,7 +278,20 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
             <Button variant="ghost" onClick={() => setSelected(new Map())}>
               Clear selection
             </Button>
-            <CleanupReviewDialog items={[...selected.values()]} />
+            <SafeCleanupReviewDialog
+              items={[...selected.values()]}
+              title="Review developer cleanup"
+              onComplete={(result) =>
+                setSelected(
+                  (current) =>
+                    new Map(
+                      [...current].filter(
+                        ([id]) => !result.movedIds.includes(id),
+                      ),
+                    ),
+                )
+              }
+            />
           </div>
         </SectionCard>
       )}
@@ -390,122 +392,6 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
         </div>
       )}
     </div>
-  );
-}
-
-function CleanupReviewDialog({ items }: { items: DeveloperCleanupItem[] }) {
-  const likelySafe = items.filter((item) => item.safety === "likelySafe");
-  const needsReview = items.filter((item) => item.safety === "review");
-  const totalSize = items.reduce((sum, item) => sum + item.sizeBytes, 0);
-
-  return (
-    <Dialog>
-      <DialogTrigger render={<Button />}>Review selected</DialogTrigger>
-      <DialogContent className="flex max-h-[min(88vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
-        <DialogHeader className="border-b border-border p-5 pr-12">
-          <DialogTitle>Review developer cleanup</DialogTitle>
-          <DialogDescription>
-            Confirm what each location contains before a future cleanup action
-            moves anything to Trash.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <ReviewMetric
-              label="Selected size"
-              value={formatBytes(totalSize)}
-            />
-            <ReviewMetric
-              label="Locations"
-              value={items.length.toLocaleString()}
-            />
-            <ReviewMetric label="Destination" value="System Trash" />
-          </div>
-
-          {needsReview.length > 0 && (
-            <div className="mt-4 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
-              <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-              <p>
-                {needsReview.length.toLocaleString()} selected locations need
-                manual review. Virtual environments and ambiguous build folders
-                may require setup work beyond a normal rebuild.
-              </p>
-            </div>
-          )}
-
-          <div className="mt-5 space-y-4">
-            <ReviewSection
-              title="Likely safe and regeneratable"
-              items={likelySafe}
-            />
-            <ReviewSection title="Needs review" items={needsReview} />
-          </div>
-        </div>
-
-        <DialogFooter className="m-0">
-          <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
-          <Button disabled>
-            <Trash2Icon data-icon="inline-start" />
-            Move to Trash unavailable
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ReviewMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function ReviewSection({
-  title,
-  items,
-}: {
-  title: string;
-  items: DeveloperCleanupItem[];
-}) {
-  if (items.length === 0) return null;
-  const visible = items.slice(0, 30);
-  return (
-    <section>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <h3 className="font-medium">{title}</h3>
-        <span className="text-xs text-muted-foreground">
-          {items.length.toLocaleString()} locations ·{" "}
-          {formatBytes(items.reduce((sum, item) => sum + item.sizeBytes, 0))}
-        </span>
-      </div>
-      <div className="divide-y divide-border rounded-lg border border-border">
-        {visible.map((item) => (
-          <div key={item.id} className="p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-medium">{item.projectName}</p>
-                <PathText className="mt-1 block">{item.path}</PathText>
-              </div>
-              <span className="shrink-0 text-sm font-semibold">
-                {formatBytes(item.sizeBytes)}
-              </span>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground">
-              {item.regeneration}
-            </p>
-          </div>
-        ))}
-        {visible.length < items.length && (
-          <p className="p-3 text-center text-xs text-muted-foreground">
-            {items.length - visible.length} more locations remain selected.
-          </p>
-        )}
-      </div>
-    </section>
   );
 }
 

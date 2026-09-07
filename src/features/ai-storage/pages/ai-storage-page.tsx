@@ -20,6 +20,7 @@ import type {
 } from "@/features/ai-storage/api/ai-storage-api";
 import { aiStorageQuery } from "@/features/ai-storage/api/ai-storage-queries";
 import { AiStorageEmptySection } from "@/features/ai-storage/components/sections/ai-storage-empty-section";
+import { CleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
@@ -72,13 +73,15 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
     (n, i) => n + i.sizeBytes,
     0,
   );
-  const toggle = (item: AiStorageItem) =>
+  const toggle = (item: AiStorageItem) => {
+    if (item.safety === "protected") return;
     setSelected((current) => {
       const next = new Map(current);
       if (next.has(item.id)) next.delete(item.id);
       else next.set(item.id, item);
       return next;
     });
+  };
   if (query.isPending)
     return <Message>Analyzing AI storage from the saved scan…</Message>;
   if (query.isError)
@@ -108,6 +111,38 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
           detail={`${selected.size} locations · analysis only`}
         />
       </div>
+      {selected.size > 0 && (
+        <SectionCard className="sticky top-0 z-20 flex flex-col gap-3 border-primary/25 bg-card/95 p-4 shadow-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">
+              {selected.size.toLocaleString()} locations ·{" "}
+              {formatBytes(selectedSize)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Models and sessions require deliberate review.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setSelected(new Map())}>
+              Clear
+            </Button>
+            <CleanupReviewDialog
+              items={[...selected.values()]}
+              title="Review AI storage cleanup"
+              onComplete={(result) =>
+                setSelected(
+                  (current) =>
+                    new Map(
+                      [...current].filter(
+                        ([id]) => !result.movedIds.includes(id),
+                      ),
+                    ),
+                )
+              }
+            />
+          </div>
+        </SectionCard>
+      )}
       <SectionCard className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
         <Filter
           label="Tool"
@@ -179,6 +214,7 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
                   >
                     <Checkbox
                       checked={selected.has(item.id)}
+                      disabled={item.safety === "protected"}
                       aria-label={`Select ${item.path} for review`}
                       onCheckedChange={() => toggle(item)}
                     />
