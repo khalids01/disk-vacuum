@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 2 — Resource-efficient persistence**
-- Current task: **Review normalized SQLite scan on Linux**
+- Current phase: **Backend Phase 7 — Developer Cleanup**
+- Current task: **Review Developer Cleanup detection on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -306,19 +306,19 @@ Only create when needed.
 
 # Phase 12 — Developer Cleanup UI
 
-- [ ] Header metrics
-- [ ] Category accordions
-- [ ] Node modules
-- [ ] Python virtual envs
-- [ ] Python cache
-- [ ] Rust targets
-- [ ] Build outputs
-- [ ] Package cache placeholder
-- [ ] Project/tool context
-- [ ] Regeneration explanation
-- [ ] Selection
+- [x] Header metrics
+- [x] Category accordions
+- [x] Node modules
+- [x] Python virtual envs
+- [x] Python cache
+- [x] Rust targets
+- [x] Build outputs
+- [x] Package cache placeholder
+- [x] Project/tool context
+- [x] Regeneration explanation
+- [x] Selection
 - [ ] Review flow
-- [ ] Mobile layout
+- [x] Mobile layout
 
 ---
 
@@ -523,16 +523,16 @@ Only create when needed.
 
 # Backend Phase 7 — Developer Cleanup
 
-- [ ] Detector model
-- [ ] Node modules
-- [ ] Python virtualenv
-- [ ] Python cache
-- [ ] Rust target
-- [ ] Build output
-- [ ] Package caches
-- [ ] Project-context inference
-- [ ] Safety classification
-- [ ] Wire page
+- [x] Detector model
+- [x] Node modules
+- [x] Python virtualenv
+- [x] Python cache
+- [x] Rust target
+- [x] Build output
+- [x] Package caches
+- [x] Project-context inference
+- [x] Safety classification
+- [x] Wire page
 - [ ] macOS tested
 - [ ] Linux tested
 

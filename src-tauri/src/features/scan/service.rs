@@ -21,10 +21,10 @@ use crate::{
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            CompletedScan, LargeFilesPage, LargeFilesQuery, ScanCapacity, ScanCategory,
-            ScanCategorySummary, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
-            ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage,
-            ScanSearchResponse, ScanSummary, ScanTreemapSummary,
+            CompletedScan, DeveloperCleanupReport, LargeFilesPage, LargeFilesQuery, ScanCapacity,
+            ScanCategory, ScanCategorySummary, ScanCommandError, ScanDirectoryPage,
+            ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress,
+            ScanProgressStage, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
     },
     scan_repository::{ScanRepository, ScanWriteSession},
@@ -356,6 +356,16 @@ pub async fn get_scan_treemap(
     tauri::async_runtime::spawn_blocking(move || repository.treemap(directory_id, max_nodes))
         .await
         .map_err(|_| "DiskVacuum could not query the space map.".to_owned())?
+}
+
+#[tauri::command]
+pub async fn get_developer_cleanup(
+    state: State<'_, AppState>,
+) -> Result<DeveloperCleanupReport, String> {
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.developer_cleanup())
+        .await
+        .map_err(|_| "DiskVacuum could not analyze developer storage.".to_owned())?
 }
 
 #[tauri::command]

@@ -265,6 +265,52 @@ pub struct LargeFilesPage {
     pub items: Vec<LargeFileItem>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DeveloperArtifactKind {
+    NodeModules,
+    BuildOutput,
+    RustTarget,
+    PythonVirtualEnvironment,
+    PythonCache,
+    PackageCache,
+    TemporaryBuildOutput,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeveloperCleanupItem {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub name: String,
+    pub path: String,
+    pub project_name: String,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+    pub kind: DeveloperArtifactKind,
+    pub safety: LargeFileSafety,
+    pub explanation: String,
+    pub regeneration: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeveloperCleanupGroup {
+    pub kind: DeveloperArtifactKind,
+    pub item_count: usize,
+    pub total_size_bytes: u64,
+    pub items: Vec<DeveloperCleanupItem>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeveloperCleanupReport {
+    pub total_count: usize,
+    pub total_size_bytes: u64,
+    pub displayed_count: usize,
+    pub groups: Vec<DeveloperCleanupGroup>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {

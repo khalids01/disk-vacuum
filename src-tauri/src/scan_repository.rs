@@ -1,12 +1,17 @@
-use crate::features::scan::model::{
-    LargeFileItem, LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanCategory,
-    ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-    ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
-    ScanTreemapSummary,
+use crate::features::{
+    developer_cleanup::{detect_artifact, is_candidate_name},
+    scan::model::{
+        DeveloperCleanupGroup, DeveloperCleanupItem, DeveloperCleanupReport, LargeFileItem,
+        LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanCategory,
+        ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
+        ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
+        ScanTreemapSummary,
+    },
 };
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
+    collections::{BTreeMap, HashMap},
     fs::{self, File},
     io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
@@ -330,6 +335,110 @@ impl ScanRepository {
         })?;
         Ok(response(q, hits, total, started))
     }
+    pub fn developer_cleanup(&self) -> Result<DeveloperCleanupReport, String> {
+        let metadata = self.metadata()?;
+        let generation = self.generation()?;
+        let mut reader = BufReader::new(File::open(generation.join(BLOCKS)).map_err(ioe)?);
+        let mut directories = HashMap::new();
+        let mut candidates = Vec::new();
+
+        loop {
+            match read_directory(&mut reader) {
+                Ok(directory) => {
+                    let sibling_names = directory
+                        .children
+                        .iter()
+                        .map(|node| node.name.to_ascii_lowercase())
+                        .collect::<Vec<_>>();
+                    for node in &directory.children {
+                        if node.kind == ScanNodeKind::Directory && is_candidate_name(&node.name) {
+                            candidates.push((directory.id, node.clone(), sibling_names.clone()));
+                        }
+                    }
+                    directories.insert(directory.id, (directory.parent_id, directory.name));
+                }
+                Err(error) if error == "eof" => break,
+                Err(error) => return Err(error),
+            }
+        }
+
+        let mut detected = Vec::new();
+        for (parent_id, node, siblings) in candidates {
+            let path = indexed_path(
+                &metadata.root_path,
+                metadata.summary.root_directory_id,
+                &directories,
+                parent_id,
+                &node.name,
+            )?;
+            let Some(detection) = detect_artifact(&node.name, &path, &siblings) else {
+                continue;
+            };
+            let project_name = directories
+                .get(&parent_id)
+                .map(|(_, name)| name.clone())
+                .unwrap_or_else(|| metadata.summary.target_label.clone());
+            detected.push(DeveloperCleanupItem {
+                id: node.id,
+                parent_directory_id: parent_id,
+                name: node.name,
+                path,
+                project_name,
+                size_bytes: node.size_bytes,
+                modified_at_unix_seconds: node.modified_at_unix_seconds,
+                kind: detection.kind,
+                safety: detection.safety,
+                explanation: detection.explanation.into(),
+                regeneration: detection.regeneration.into(),
+            });
+        }
+
+        detected.sort_by_key(|item| item.path.replace('\\', "/").len());
+        let mut roots = Vec::<String>::new();
+        detected.retain(|item| {
+            let path = item.path.replace('\\', "/");
+            if roots
+                .iter()
+                .any(|root| path.starts_with(&format!("{root}/")))
+            {
+                false
+            } else {
+                roots.push(path);
+                true
+            }
+        });
+
+        let total_count = detected.len();
+        let total_size_bytes = detected.iter().map(|item| item.size_bytes).sum();
+        let mut grouped = BTreeMap::new();
+        for item in detected {
+            grouped.entry(item.kind).or_insert_with(Vec::new).push(item);
+        }
+        let groups = grouped
+            .into_iter()
+            .map(|(kind, mut items)| {
+                items.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes).then(a.path.cmp(&b.path)));
+                let item_count = items.len();
+                let total_size_bytes = items.iter().map(|item| item.size_bytes).sum();
+                items.truncate(300);
+                DeveloperCleanupGroup {
+                    kind,
+                    item_count,
+                    total_size_bytes,
+                    items,
+                }
+            })
+            .collect::<Vec<_>>();
+        let displayed_count = groups.iter().map(|group| group.items.len()).sum();
+
+        Ok(DeveloperCleanupReport {
+            total_count,
+            total_size_bytes,
+            displayed_count,
+            groups,
+        })
+    }
+
     pub fn large_files(&self, q: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
         let keep = q.offset.min(100_000) + q.limit.clamp(1, MAX_PAGE);
         let ext = q
@@ -598,6 +707,32 @@ fn dominant(nodes: &[ScanNodeSummary]) -> ScanCategory {
         .max_by_key(|c| a[c.index()])
         .unwrap_or(ScanCategory::Other)
 }
+fn indexed_path(
+    root_path: &Path,
+    root_id: u64,
+    directories: &HashMap<u64, (Option<u64>, String)>,
+    parent_id: u64,
+    name: &str,
+) -> Result<String, String> {
+    let mut parts = vec![name.to_owned()];
+    let mut current = parent_id;
+    let mut visited = 0;
+    while current != root_id {
+        let (parent, directory_name) = directories.get(&current).ok_or("Broken parent index.")?;
+        parts.push(directory_name.clone());
+        current = parent.ok_or("Broken parent index.")?;
+        visited += 1;
+        if visited > directories.len() {
+            return Err("Cycle in parent index.".into());
+        }
+    }
+    let mut path = root_path.to_path_buf();
+    for part in parts.into_iter().rev() {
+        path.push(part);
+    }
+    Ok(path.to_string_lossy().into())
+}
+
 fn rank(r: &ScanSearchResult, q: &str) -> u8 {
     let n = r.name.to_lowercase();
     if n == q {
@@ -650,7 +785,7 @@ fn safety(c: ScanCategory) -> LargeFileSafety {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::features::scan::model::ScanCategorySummary;
+    use crate::features::scan::model::{DeveloperArtifactKind, ScanCategorySummary};
 
     fn temp(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -789,6 +924,82 @@ mod tests {
             protected.items[0].safety,
             LargeFileSafety::Protected
         ));
+        fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn developer_cleanup_detects_project_artifacts_without_double_counting() {
+        let path = temp("developer-cleanup");
+        let repo = ScanRepository::open(&path).unwrap();
+        let writer = repo.begin_scan_write().unwrap();
+        writer
+            .write_directory(ScanDirectoryRecord {
+                id: 11,
+                parent_id: Some(10),
+                name: "node_modules".into(),
+                children: vec![ScanNodeSummary {
+                    id: 12,
+                    name: "__pycache__".into(),
+                    kind: ScanNodeKind::Directory,
+                    size_bytes: 50,
+                    category: ScanCategory::Caches,
+                    modified_at_unix_seconds: Some(5),
+                }],
+            })
+            .unwrap();
+        writer
+            .write_directory(ScanDirectoryRecord {
+                id: 10,
+                parent_id: Some(0),
+                name: "my-app".into(),
+                children: vec![
+                    ScanNodeSummary {
+                        id: 11,
+                        name: "node_modules".into(),
+                        kind: ScanNodeKind::Directory,
+                        size_bytes: 500,
+                        category: ScanCategory::Developer,
+                        modified_at_unix_seconds: Some(10),
+                    },
+                    ScanNodeSummary {
+                        id: 13,
+                        name: "package.json".into(),
+                        kind: ScanNodeKind::File,
+                        size_bytes: 1,
+                        category: ScanCategory::Developer,
+                        modified_at_unix_seconds: Some(10),
+                    },
+                ],
+            })
+            .unwrap();
+        writer
+            .write_directory(ScanDirectoryRecord {
+                id: 0,
+                parent_id: None,
+                name: "Home".into(),
+                children: vec![ScanNodeSummary {
+                    id: 10,
+                    name: "my-app".into(),
+                    kind: ScanNodeKind::Directory,
+                    size_bytes: 501,
+                    category: ScanCategory::Developer,
+                    modified_at_unix_seconds: Some(10),
+                }],
+            })
+            .unwrap();
+        writer
+            .finish("/home/tester".into(), summary("Home"))
+            .unwrap();
+
+        let report = repo.developer_cleanup().unwrap();
+        assert_eq!(report.total_count, 1);
+        assert_eq!(report.total_size_bytes, 500);
+        assert_eq!(report.groups[0].kind, DeveloperArtifactKind::NodeModules);
+        assert_eq!(report.groups[0].items[0].project_name, "my-app");
+        assert_eq!(
+            report.groups[0].items[0].path,
+            "/home/tester/my-app/node_modules"
+        );
         fs::remove_dir_all(path).unwrap();
     }
 
