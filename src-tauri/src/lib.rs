@@ -31,6 +31,7 @@ pub fn run() {
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
             features::scan::service::get_ai_storage,
+            features::scan::service::get_app_leftovers,
             features::scan::service::get_developer_cleanup,
             features::scan::service::get_large_files,
             features::scan::service::get_scan_breadcrumbs,

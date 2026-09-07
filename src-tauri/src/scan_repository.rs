@@ -1,13 +1,16 @@
 use crate::features::{
     ai_storage::{detect as detect_ai_storage, is_candidate_name as is_ai_candidate_name},
+    app_leftovers::{
+        detect as detect_app_leftover, installed_app_tokens, is_candidate_parent_name,
+    },
     developer_cleanup::{detect_artifact, is_candidate_name},
     scan::model::{
-        AiStorageGroup, AiStorageItem, AiStorageReport, DeveloperCleanupGroup,
-        DeveloperCleanupItem, DeveloperCleanupReport, DuplicateCandidate, LargeFileItem,
-        LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem,
-        ScanCategory, ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind,
-        ScanNodeSummary, ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode,
-        ScanTreemapNodeKind, ScanTreemapSummary,
+        AiStorageGroup, AiStorageItem, AiStorageReport, AppLeftoverConfidence, AppLeftoverGroup,
+        AppLeftoverItem, AppLeftoversReport, DeveloperCleanupGroup, DeveloperCleanupItem,
+        DeveloperCleanupReport, DuplicateCandidate, LargeFileItem, LargeFileSafety, LargeFileSort,
+        LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem, ScanCategory, ScanDirectoryPage,
+        ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanSearchResponse,
+        ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind, ScanTreemapSummary,
     },
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -31,6 +34,7 @@ const BLOCKS: &str = "blocks.bin";
 const LOOKUP: &str = "directories.bin";
 const META: &str = "metadata.json";
 const AI_STORAGE_CACHE: &str = "ai-storage-v1.json";
+const APP_LEFTOVERS_CACHE: &str = "app-leftovers-v1.json";
 const DEVELOPER_CACHE: &str = "developer-analysis-v1.json";
 const LARGE_FILES_CACHE: &str = "large-files-v1.json";
 const LARGE_FILES_CACHE_MINIMUM: u64 = 100 * 1024 * 1024;
@@ -503,6 +507,87 @@ impl ScanRepository {
             }
         }
         Ok(ai_storage_report(items))
+    }
+
+    pub fn app_leftovers(&self) -> Result<AppLeftoversReport, String> {
+        let cache = self.generation()?.join(APP_LEFTOVERS_CACHE);
+        if let Some(report) = read_json_cache(&cache) {
+            return Ok(report);
+        }
+        let _guard = self
+            .derived_lock
+            .lock()
+            .map_err(|_| "Analysis cache unavailable.".to_owned())?;
+        if let Some(report) = read_json_cache(&cache) {
+            return Ok(report);
+        }
+        let installed = installed_app_tokens();
+        let mut candidates = Vec::new();
+        let generation = self.generation()?;
+        let mut reader = BufReader::new(File::open(generation.join(BLOCKS)).map_err(ioe)?);
+        loop {
+            match read_directory(&mut reader) {
+                Ok(directory) => {
+                    if is_candidate_parent_name(&directory.name) {
+                        candidates.extend(
+                            directory
+                                .children
+                                .into_iter()
+                                .filter(|node| node.kind == ScanNodeKind::Directory)
+                                .map(|node| (directory.id, node)),
+                        );
+                    }
+                }
+                Err(error) if error == "eof" => break,
+                Err(error) => return Err(error),
+            }
+        }
+        let mut items = Vec::new();
+        for (parent, node) in candidates {
+            let path = self.path(parent, &node.name)?;
+            let Some(detection) = detect_app_leftover(&path, &node.name, &installed) else {
+                continue;
+            };
+            items.push(AppLeftoverItem {
+                id: node.id,
+                parent_directory_id: parent,
+                path,
+                name: node.name,
+                app_name: detection.app_name,
+                size_bytes: node.size_bytes,
+                modified_at_unix_seconds: node.modified_at_unix_seconds,
+                confidence: detection.confidence,
+                evidence: detection.evidence,
+            });
+        }
+        items.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes).then(a.path.cmp(&b.path)));
+        let total_size_bytes = items.iter().map(|item| item.size_bytes).sum();
+        let item_count = items.len();
+        let high_confidence_count = items
+            .iter()
+            .filter(|item| item.confidence == AppLeftoverConfidence::High)
+            .count();
+        let mut grouped = BTreeMap::<String, Vec<AppLeftoverItem>>::new();
+        for item in items {
+            grouped.entry(item.app_name.clone()).or_default().push(item);
+        }
+        let mut groups = grouped
+            .into_iter()
+            .map(|(app_name, items)| AppLeftoverGroup {
+                total_size_bytes: items.iter().map(|item| item.size_bytes).sum(),
+                app_name,
+                items,
+            })
+            .collect::<Vec<_>>();
+        groups.sort_by(|a, b| b.total_size_bytes.cmp(&a.total_size_bytes));
+        let report = AppLeftoversReport {
+            total_size_bytes,
+            item_count,
+            high_confidence_count,
+            groups,
+        };
+        write_json_cache(&cache, &report)?;
+        Ok(report)
     }
 
     pub fn developer_cleanup(&self) -> Result<DeveloperCleanupReport, String> {

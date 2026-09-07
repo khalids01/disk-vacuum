@@ -21,11 +21,11 @@ use crate::{
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            AiStorageReport, CompletedScan, DeveloperCleanupReport, LargeFilesPage,
-            LargeFilesQuery, ScanBreadcrumbItem, ScanCapacity, ScanCategory, ScanCategorySummary,
-            ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails,
-            ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage, ScanSearchResponse,
-            ScanSummary, ScanTreemapSummary,
+            AiStorageReport, AppLeftoversReport, CompletedScan, DeveloperCleanupReport,
+            LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem, ScanCapacity, ScanCategory,
+            ScanCategorySummary, ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord,
+            ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage,
+            ScanSearchResponse, ScanSummary, ScanTreemapSummary,
         },
     },
     scan_repository::{ScanRepository, ScanWriteSession},
@@ -376,6 +376,14 @@ pub async fn get_ai_storage(state: State<'_, AppState>) -> Result<AiStorageRepor
     tauri::async_runtime::spawn_blocking(move || repository.ai_storage())
         .await
         .map_err(|_| "DiskVacuum could not analyze AI storage.".to_owned())?
+}
+
+#[tauri::command]
+pub async fn get_app_leftovers(state: State<'_, AppState>) -> Result<AppLeftoversReport, String> {
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.app_leftovers())
+        .await
+        .map_err(|_| "DiskVacuum could not analyze application leftovers.".to_owned())?
 }
 
 #[tauri::command]

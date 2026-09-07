@@ -312,6 +312,45 @@ pub struct AiStorageReport {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum AppLeftoverConfidence {
+    High,
+    Likely,
+    Review,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLeftoverItem {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub path: String,
+    pub name: String,
+    pub app_name: String,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+    pub confidence: AppLeftoverConfidence,
+    pub evidence: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLeftoverGroup {
+    pub app_name: String,
+    pub total_size_bytes: u64,
+    pub items: Vec<AppLeftoverItem>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLeftoversReport {
+    pub total_size_bytes: u64,
+    pub item_count: usize,
+    pub high_confidence_count: usize,
+    pub groups: Vec<AppLeftoverGroup>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DeveloperArtifactKind {
     NodeModules,
     BuildOutput,
