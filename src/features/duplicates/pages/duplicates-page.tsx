@@ -2,11 +2,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { listen } from "@tauri-apps/api/event";
 import {
+  AlertTriangleIcon,
   CheckIcon,
   FolderSearchIcon,
   LoaderCircleIcon,
   PlayIcon,
   SquareIcon,
+  Trash2Icon,
 } from "lucide-react";
 import {
   memo,
@@ -22,6 +24,16 @@ import { PathText } from "@/components/core/path-text";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -133,6 +145,12 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
     },
     [navigate],
   );
+  const selectedFiles = (report?.groups ?? []).flatMap((group) =>
+    group.files.filter((file) => selectedIds.current.has(file.id)),
+  );
+  const selectedGroupCount = (report?.groups ?? []).filter((group) =>
+    group.files.some((file) => selectedIds.current.has(file.id)),
+  ).length;
   const percent = progress?.total
     ? Math.round((progress.processed / progress.total) * 100)
     : 0;
@@ -252,6 +270,13 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
             label="Selected for review"
             value={formatBytes(selectedSize)}
           />
+          {selectedFiles.length > 0 && (
+            <DuplicateReviewDialog
+              files={selectedFiles}
+              groupCount={selectedGroupCount}
+              totalSize={selectedSize}
+            />
+          )}
         </div>
       )}
       {!report ? (
@@ -379,6 +404,88 @@ const DuplicateFileRow = memo(function DuplicateFileRow({
     </div>
   );
 });
+
+function DuplicateReviewDialog({
+  files,
+  groupCount,
+  totalSize,
+}: {
+  files: DuplicateFile[];
+  groupCount: number;
+  totalSize: number;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button className="sm:col-span-3" />}>
+        Review selected copies
+      </DialogTrigger>
+      <DialogContent className="flex max-h-[min(88vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+        <DialogHeader className="border-b border-border p-5 pr-12">
+          <DialogTitle>Review duplicate copies</DialogTitle>
+          <DialogDescription>
+            These exact copies are selected. Nothing will be moved until the
+            safety checks and final confirmation are available.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <ReviewMetric
+              label="Selected size"
+              value={formatBytes(totalSize)}
+            />
+            <ReviewMetric
+              label="Copies"
+              value={files.length.toLocaleString()}
+            />
+            <ReviewMetric
+              label="Duplicate groups"
+              value={groupCount.toLocaleString()}
+            />
+          </div>
+          <div className="mt-4 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+            <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+            <p>
+              DiskVacuum will revalidate every path, file size, scan scope, and
+              protected location before enabling Trash.
+            </p>
+          </div>
+          <div className="mt-5 space-y-2">
+            {files.map((file) => (
+              <div
+                key={file.id}
+                className="rounded-lg border border-border bg-muted/20 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 truncate font-medium">{file.name}</p>
+                  <span className="shrink-0 text-sm font-medium">
+                    {formatBytes(file.sizeBytes)}
+                  </span>
+                </div>
+                <PathText className="mt-1 block">{file.path}</PathText>
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter className="m-0">
+          <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
+          <Button disabled>
+            <Trash2Icon />
+            Safety validation required
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReviewMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-semibold">{value}</p>
+    </div>
+  );
+}
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
