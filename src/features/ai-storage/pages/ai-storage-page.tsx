@@ -201,7 +201,7 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
                       onClick={() =>
                         void navigate({
                           to: "/explorer",
-                          search: { directoryId: item.parentDirectoryId },
+                          search: { directoryId: item.id },
                         })
                       }
                     >

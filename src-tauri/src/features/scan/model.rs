@@ -356,6 +356,13 @@ pub struct DeveloperCleanupReport {
     pub groups: Vec<DeveloperCleanupGroup>,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanBreadcrumbItem {
+    pub id: u64,
+    pub name: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {

@@ -6,23 +6,24 @@ import {
   FileIcon,
   FolderIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/core/page-header";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
-import { scanDirectoryQuery } from "@/features/explorer/api/explorer-queries";
+import {
+  scanBreadcrumbsQuery,
+  scanDirectoryQuery,
+} from "@/features/explorer/api/explorer-queries";
 import { ExplorerEmptySection } from "@/features/explorer/components/sections/explorer-empty-section";
-import type { ScanSummary } from "@/features/scan/api/scan-api";
+import type {
+  ScanBreadcrumbItem,
+  ScanSummary,
+} from "@/features/scan/api/scan-api";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
 const PAGE_SIZE = 100;
-
-interface BreadcrumbItem {
-  id: number;
-  name: string;
-}
 
 export function ExplorerPage() {
   const { data: currentScan } = useQuery(currentScanQuery);
@@ -62,12 +63,24 @@ function ScanExplorer({
   const startsAtRoot =
     initialDirectoryId === undefined ||
     initialDirectoryId === summary.rootDirectoryId;
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
+  const [breadcrumbs, setBreadcrumbs] = useState<ScanBreadcrumbItem[]>([
     startsAtRoot
       ? { id: summary.rootDirectoryId, name: summary.targetLabel }
       : { id: initialDirectoryId, name: "Selected location" },
   ]);
+  const initialBreadcrumbs = useQuery(
+    scanBreadcrumbsQuery(
+      summary.completedAtUnixSeconds,
+      initialDirectoryId ?? summary.rootDirectoryId,
+    ),
+  );
   const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    if (initialBreadcrumbs.data) {
+      setBreadcrumbs(initialBreadcrumbs.data);
+      setOffset(0);
+    }
+  }, [initialBreadcrumbs.data]);
   const activeDirectory = breadcrumbs[breadcrumbs.length - 1] ?? breadcrumbs[0];
   const directory = useQuery(
     scanDirectoryQuery(

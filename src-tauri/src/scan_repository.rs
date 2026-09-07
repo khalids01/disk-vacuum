@@ -4,9 +4,10 @@ use crate::features::{
     scan::model::{
         AiStorageGroup, AiStorageItem, AiStorageReport, DeveloperCleanupGroup,
         DeveloperCleanupItem, DeveloperCleanupReport, LargeFileItem, LargeFileSafety,
-        LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanCategory, ScanDirectoryPage,
-        ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanSearchResponse,
-        ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind, ScanTreemapSummary,
+        LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem, ScanCategory,
+        ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
+        ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
+        ScanTreemapSummary,
     },
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -186,6 +187,32 @@ impl ScanRepository {
         }
         Err("The scanned directory is no longer available.".into())
     }
+    pub fn breadcrumbs(&self, id: u64) -> Result<Vec<ScanBreadcrumbItem>, String> {
+        let metadata = self.metadata()?;
+        let mut current = id;
+        let mut items = Vec::new();
+        loop {
+            if current == metadata.summary.root_directory_id {
+                items.push(ScanBreadcrumbItem {
+                    id: current,
+                    name: metadata.summary.target_label.clone(),
+                });
+                break;
+            }
+            let directory = self.block(current)?;
+            items.push(ScanBreadcrumbItem {
+                id: current,
+                name: directory.name,
+            });
+            current = directory.parent_id.ok_or("Broken parent index.")?;
+            if items.len() > 1024 {
+                return Err("Cycle in parent index.".into());
+            }
+        }
+        items.reverse();
+        Ok(items)
+    }
+
     pub fn directory(
         &self,
         id: u64,
@@ -1280,6 +1307,14 @@ mod tests {
             "Home"
         );
         assert_eq!(repo.directory(1, 0, 100).unwrap().items.len(), 3);
+        assert_eq!(
+            repo.breadcrumbs(1)
+                .unwrap()
+                .into_iter()
+                .map(|item| item.name)
+                .collect::<Vec<_>>(),
+            vec!["Home", "Documents"]
+        );
         assert_eq!(
             repo.node_details(1, 2).unwrap().path,
             "/home/tester/Documents/movie.mkv"

@@ -76,6 +76,11 @@ export interface ScanTreemapSummary {
   nodes: ScanTreemapNode[];
 }
 
+export interface ScanBreadcrumbItem {
+  id: number;
+  name: string;
+}
+
 export interface ScanDirectoryPage {
   directoryId: number;
   parentId: number | null;
@@ -130,6 +135,10 @@ export function getScanTreemap(directoryId: number, maxNodes = 48) {
     directoryId,
     maxNodes,
   });
+}
+
+export function getScanBreadcrumbs(directoryId: number) {
+  return invoke<ScanBreadcrumbItem[]>("get_scan_breadcrumbs", { directoryId });
 }
 
 export function getScanDirectory(directoryId: number, offset = 0, limit = 200) {

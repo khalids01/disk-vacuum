@@ -21,10 +21,11 @@ use crate::{
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            CompletedScan, AiStorageReport, DeveloperCleanupReport, LargeFilesPage, LargeFilesQuery, ScanCapacity,
-            ScanCategory, ScanCategorySummary, ScanCommandError, ScanDirectoryPage,
-            ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress,
-            ScanProgressStage, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
+            AiStorageReport, CompletedScan, DeveloperCleanupReport, LargeFilesPage,
+            LargeFilesQuery, ScanBreadcrumbItem, ScanCapacity, ScanCategory, ScanCategorySummary,
+            ScanCommandError, ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails,
+            ScanNodeKind, ScanNodeSummary, ScanProgress, ScanProgressStage, ScanSearchResponse,
+            ScanSummary, ScanTreemapSummary,
         },
     },
     scan_repository::{ScanRepository, ScanWriteSession},
@@ -334,6 +335,17 @@ pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary
 }
 
 #[tauri::command]
+pub async fn get_scan_breadcrumbs(
+    directory_id: u64,
+    state: State<'_, AppState>,
+) -> Result<Vec<ScanBreadcrumbItem>, String> {
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.breadcrumbs(directory_id))
+        .await
+        .map_err(|_| "DiskVacuum could not build the scanned path.".to_owned())?
+}
+
+#[tauri::command]
 pub async fn get_scan_directory(
     directory_id: u64,
     offset: usize,
@@ -361,7 +373,9 @@ pub async fn get_scan_treemap(
 #[tauri::command]
 pub async fn get_ai_storage(state: State<'_, AppState>) -> Result<AiStorageReport, String> {
     let repository = state.scan_repository.clone();
-    tauri::async_runtime::spawn_blocking(move || repository.ai_storage()).await.map_err(|_| "DiskVacuum could not analyze AI storage.".to_owned())?
+    tauri::async_runtime::spawn_blocking(move || repository.ai_storage())
+        .await
+        .map_err(|_| "DiskVacuum could not analyze AI storage.".to_owned())?
 }
 
 #[tauri::command]

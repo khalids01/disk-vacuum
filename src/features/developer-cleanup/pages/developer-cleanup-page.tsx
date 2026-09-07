@@ -361,7 +361,7 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
                         onInspect={() =>
                           void navigate({
                             to: "/explorer",
-                            search: { directoryId: item.parentDirectoryId },
+                            search: { directoryId: item.id },
                           })
                         }
                       />
@@ -401,7 +401,7 @@ function CleanupReviewDialog({ items }: { items: DeveloperCleanupItem[] }) {
   return (
     <Dialog>
       <DialogTrigger render={<Button />}>Review selected</DialogTrigger>
-      <DialogContent className="max-h-[min(88vh,760px)] gap-0 overflow-hidden p-0 sm:max-w-3xl">
+      <DialogContent className="flex max-h-[min(88vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-border p-5 pr-12">
           <DialogTitle>Review developer cleanup</DialogTitle>
           <DialogDescription>
@@ -410,7 +410,7 @@ function CleanupReviewDialog({ items }: { items: DeveloperCleanupItem[] }) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <div className="grid gap-3 sm:grid-cols-3">
             <ReviewMetric
               label="Selected size"

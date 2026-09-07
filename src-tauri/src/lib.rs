@@ -26,6 +26,7 @@ pub fn run() {
             features::scan::service::get_ai_storage,
             features::scan::service::get_developer_cleanup,
             features::scan::service::get_large_files,
+            features::scan::service::get_scan_breadcrumbs,
             features::scan::service::get_scan_directory,
             features::scan::service::get_scan_node_details,
             features::scan::service::get_scan_treemap,
