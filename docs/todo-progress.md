@@ -317,7 +317,7 @@ Only create when needed.
 - [x] Project/tool context
 - [x] Regeneration explanation
 - [x] Selection
-- [ ] Review flow
+- [x] Review flow
 - [x] Mobile layout
 
 ---
