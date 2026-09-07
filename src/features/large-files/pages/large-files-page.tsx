@@ -378,6 +378,7 @@ function FilterSelect({
   onValueChange: (value: string) => void;
   options: FilterSelectOption[];
 }) {
+  const selectedLabel = options.find((option) => option.value === value)?.label;
   return (
     <Select
       value={value}
@@ -386,7 +387,7 @@ function FilterSelect({
       }}
     >
       <SelectTrigger className="w-full">
-        <SelectValue />
+        <SelectValue>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent align="start">
         {options.map((option) => (

@@ -8,7 +8,7 @@ use crate::features::{
         ScanTreemapSummary,
     },
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, HashMap},
@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         mpsc::{self, SyncSender},
-        Arc, RwLock,
+        Arc, Mutex, RwLock,
     },
     thread::{self, JoinHandle},
     time::{Instant, SystemTime, UNIX_EPOCH},
@@ -27,6 +27,9 @@ const ROOT: &str = "scan-index-v1";
 const BLOCKS: &str = "blocks.bin";
 const LOOKUP: &str = "directories.bin";
 const META: &str = "metadata.json";
+const DEVELOPER_CACHE: &str = "developer-analysis-v1.json";
+const LARGE_FILES_CACHE: &str = "large-files-v1.json";
+const LARGE_FILES_CACHE_MINIMUM: u64 = 100 * 1024 * 1024;
 const PARENT_NONE: u64 = u64::MAX;
 const QUEUE: usize = 1;
 const MAX_PAGE: usize = 200;
@@ -49,6 +52,7 @@ enum Message {
 pub struct ScanRepository {
     root: PathBuf,
     active: Arc<RwLock<Option<PathBuf>>>,
+    derived_lock: Arc<Mutex<()>>,
 }
 pub struct ScanWriteSession {
     sender: Option<SyncSender<Message>>,
@@ -107,6 +111,7 @@ impl ScanRepository {
         Ok(Self {
             root,
             active: Arc::new(RwLock::new(active)),
+            derived_lock: Arc::new(Mutex::new(())),
         })
     }
     pub fn begin_scan_write(&self) -> Result<ScanWriteSession, String> {
@@ -336,6 +341,23 @@ impl ScanRepository {
         Ok(response(q, hits, total, started))
     }
     pub fn developer_cleanup(&self) -> Result<DeveloperCleanupReport, String> {
+        let cache = self.generation()?.join(DEVELOPER_CACHE);
+        if let Some(report) = read_json_cache(&cache) {
+            return Ok(report);
+        }
+        let _guard = self
+            .derived_lock
+            .lock()
+            .map_err(|_| "Analysis cache unavailable.".to_owned())?;
+        if let Some(report) = read_json_cache(&cache) {
+            return Ok(report);
+        }
+        let report = self.build_developer_cleanup()?;
+        write_json_cache(&cache, &report)?;
+        Ok(report)
+    }
+
+    fn build_developer_cleanup(&self) -> Result<DeveloperCleanupReport, String> {
         let metadata = self.metadata()?;
         let generation = self.generation()?;
         let mut reader = BufReader::new(File::open(generation.join(BLOCKS)).map_err(ioe)?);
@@ -439,7 +461,62 @@ impl ScanRepository {
         })
     }
 
-    pub fn large_files(&self, q: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
+    pub fn large_files(&self, query: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
+        if query.minimum_size_bytes < LARGE_FILES_CACHE_MINIMUM {
+            return self.large_files_uncached(query);
+        }
+        let cache = self.generation()?.join(LARGE_FILES_CACHE);
+        let candidates = if let Some(items) = read_json_cache(&cache) {
+            items
+        } else {
+            let _guard = self
+                .derived_lock
+                .lock()
+                .map_err(|_| "Analysis cache unavailable.".to_owned())?;
+            if let Some(items) = read_json_cache(&cache) {
+                items
+            } else {
+                let items = self.build_large_files_cache()?;
+                write_json_cache(&cache, &items)?;
+                items
+            }
+        };
+        Ok(query_cached_large_files(candidates, query))
+    }
+
+    fn build_large_files_cache(&self) -> Result<Vec<LargeFileItem>, String> {
+        let mut candidates = Vec::new();
+        self.for_each_node(|parent, node| {
+            if node.kind != ScanNodeKind::File || node.size_bytes < LARGE_FILES_CACHE_MINIMUM {
+                return Ok(());
+            }
+            let path = self.path(parent, &node.name)?;
+            let parent_path = Path::new(&path)
+                .parent()
+                .map(|value| value.to_string_lossy().into())
+                .unwrap_or_default();
+            let extension = Path::new(&node.name)
+                .extension()
+                .and_then(|value| value.to_str())
+                .map(str::to_lowercase);
+            candidates.push(LargeFileItem {
+                id: node.id,
+                parent_directory_id: parent,
+                name: node.name,
+                path,
+                parent_path,
+                extension,
+                size_bytes: node.size_bytes,
+                modified_at_unix_seconds: node.modified_at_unix_seconds,
+                category: node.category,
+                safety: safety(node.category),
+            });
+            Ok(())
+        })?;
+        Ok(candidates)
+    }
+
+    fn large_files_uncached(&self, q: &LargeFilesQuery) -> Result<LargeFilesPage, String> {
         let keep = q.offset.min(100_000) + q.limit.clamp(1, MAX_PAGE);
         let ext = q
             .extension
@@ -707,6 +784,70 @@ fn dominant(nodes: &[ScanNodeSummary]) -> ScanCategory {
         .max_by_key(|c| a[c.index()])
         .unwrap_or(ScanCategory::Other)
 }
+fn read_json_cache<T: DeserializeOwned>(path: &Path) -> Option<T> {
+    let bytes = fs::read(path).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+fn write_json_cache(path: &Path, value: &impl Serialize) -> Result<(), String> {
+    let bytes = serde_json::to_vec(value).map_err(|error| error.to_string())?;
+    fs::write(path, bytes).map_err(ioe)
+}
+
+fn query_cached_large_files(
+    mut candidates: Vec<LargeFileItem>,
+    query: &LargeFilesQuery,
+) -> LargeFilesPage {
+    let extension = query
+        .extension
+        .as_deref()
+        .map(|value| value.trim_start_matches('.').to_ascii_lowercase());
+    candidates.retain(|item| {
+        item.size_bytes >= query.minimum_size_bytes
+            && query.category.is_none_or(|value| value == item.category)
+            && query.safety.is_none_or(|value| value == item.safety)
+            && query.modified_before_unix_seconds.is_none_or(|cutoff| {
+                item.modified_at_unix_seconds
+                    .is_some_and(|modified| modified <= cutoff)
+            })
+            && extension.as_ref().is_none_or(|value| {
+                item.extension
+                    .as_ref()
+                    .is_some_and(|item_extension| item_extension.eq_ignore_ascii_case(value))
+            })
+    });
+    let total_count = candidates.len();
+    let total_size_bytes = candidates.iter().map(|item| item.size_bytes).sum();
+    candidates.sort_by(|a, b| {
+        match query.sort {
+            LargeFileSort::SizeDescending => b.size_bytes.cmp(&a.size_bytes),
+            LargeFileSort::ModifiedNewest => {
+                b.modified_at_unix_seconds.cmp(&a.modified_at_unix_seconds)
+            }
+            LargeFileSort::ModifiedOldest => {
+                a.modified_at_unix_seconds.cmp(&b.modified_at_unix_seconds)
+            }
+            LargeFileSort::NameAscending => a
+                .name
+                .to_ascii_lowercase()
+                .cmp(&b.name.to_ascii_lowercase()),
+        }
+        .then(a.id.cmp(&b.id))
+    });
+    let offset = query.offset.min(total_count);
+    let items = candidates
+        .into_iter()
+        .skip(offset)
+        .take(query.limit.clamp(1, MAX_PAGE))
+        .collect();
+    LargeFilesPage {
+        total_count,
+        total_size_bytes,
+        offset,
+        items,
+    }
+}
+
 fn indexed_path(
     root_path: &Path,
     root_id: u64,

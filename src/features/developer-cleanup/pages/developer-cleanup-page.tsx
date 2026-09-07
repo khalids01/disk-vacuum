@@ -96,8 +96,11 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
   const [kind, setKind] = useState<DeveloperArtifactKind | "all">("all");
   const [safety, setSafety] = useState<LargeFileSafety | "all">("all");
   const [collapsed, setCollapsed] = useState<Set<DeveloperArtifactKind>>(
-    new Set(),
+    new Set(Object.keys(KIND_META) as DeveloperArtifactKind[]),
   );
+  const [visibleLimits, setVisibleLimits] = useState<
+    Partial<Record<DeveloperArtifactKind, number>>
+  >({});
   const [selected, setSelected] = useState<Map<number, DeveloperCleanupItem>>(
     new Map(),
   );
@@ -269,6 +272,10 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
             const selectable = group.items.filter(
               (item) => item.safety !== "protected",
             );
+            const displayedItems = group.items.slice(
+              0,
+              visibleLimits[group.kind] ?? 40,
+            );
             const allSelected =
               selectable.length > 0 &&
               selectable.every((item) => selected.has(item.id));
@@ -311,7 +318,7 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
                 </div>
                 {!isCollapsed && (
                   <div className="divide-y divide-border">
-                    {group.items.map((item) => (
+                    {displayedItems.map((item) => (
                       <ArtifactRow
                         key={item.id}
                         item={item}
@@ -327,6 +334,22 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
                         }
                       />
                     ))}
+                    {displayedItems.length < group.items.length && (
+                      <div className="flex justify-center p-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setVisibleLimits((current) => ({
+                              ...current,
+                              [group.kind]: displayedItems.length + 40,
+                            }))
+                          }
+                        >
+                          Show 40 more
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 )}
               </SectionCard>
@@ -466,13 +489,14 @@ function FilterSelect({
   onValueChange: (value: string) => void;
   options: { value: string; label: string }[];
 }) {
+  const selectedLabel = options.find((option) => option.value === value)?.label;
   return (
     <Select
       value={value}
       onValueChange={(next) => next !== null && onValueChange(next)}
     >
       <SelectTrigger className="w-full">
-        <SelectValue />
+        <SelectValue>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent align="start">
         {options.map((option) => (

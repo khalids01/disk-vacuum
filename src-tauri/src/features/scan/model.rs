@@ -241,7 +241,7 @@ pub enum LargeFileSafety {
     Protected,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LargeFileItem {
     pub id: u64,
@@ -277,7 +277,7 @@ pub enum DeveloperArtifactKind {
     TemporaryBuildOutput,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeveloperCleanupItem {
     pub id: u64,
@@ -293,7 +293,7 @@ pub struct DeveloperCleanupItem {
     pub regeneration: String,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeveloperCleanupGroup {
     pub kind: DeveloperArtifactKind,
@@ -302,7 +302,7 @@ pub struct DeveloperCleanupGroup {
     pub items: Vec<DeveloperCleanupItem>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeveloperCleanupReport {
     pub total_count: usize,
