@@ -16,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 import { PageHeader } from "@/components/core/page-header";
 import { PathText } from "@/components/core/path-text";
 import { SectionCard } from "@/components/core/section-card";
@@ -314,7 +315,7 @@ const DuplicateFileRow = memo(function DuplicateFileRow({
   }, [initiallyChecked, selectionVersion]);
   const toggle = () => {
     if (file.recommendedKeep) return;
-    setChecked((value) => !value);
+    flushSync(() => setChecked((value) => !value));
     onToggle(file);
   };
   return (
@@ -348,8 +349,8 @@ const DuplicateFileRow = memo(function DuplicateFileRow({
         <div className="flex gap-2">
           <p className="font-medium">{file.name}</p>
           {file.recommendedKeep && (
-            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 text-[11px] text-emerald-700">
-              <CheckIcon className="mr-1 inline size-3" />
+            <span className="inline-flex h-5 shrink-0 items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium leading-none text-emerald-700 dark:text-emerald-300">
+              <CheckIcon className="size-3" />
               Recommended keep
             </span>
           )}
