@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 7 — Developer Cleanup**
-- Current task: **Review Developer Cleanup detection on Linux**
+- Current phase: **Backend Phase 8 — AI Storage**
+- Current task: **Review AI Storage detection on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -324,18 +324,18 @@ Only create when needed.
 
 # Phase 13 — AI Storage UI
 
-- [ ] Header metrics
-- [ ] Tool groups
-- [ ] Models group
-- [ ] Cache group
-- [ ] Logs group
-- [ ] Sessions group
-- [ ] “Removal consequence” copy
-- [ ] Safety state
-- [ ] Selection
-- [ ] Model files never auto-selected
-- [ ] Empty state
-- [ ] Mobile layout
+- [x] Header metrics
+- [x] Tool groups
+- [x] Models group
+- [x] Cache group
+- [x] Logs group
+- [x] Sessions group
+- [x] “Removal consequence” copy
+- [x] Safety state
+- [x] Selection
+- [x] Model files never auto-selected
+- [x] Empty state
+- [x] Mobile layout
 
 ---
 
@@ -540,16 +540,16 @@ Only create when needed.
 
 # Backend Phase 8 — AI Storage
 
-- [ ] Manifest model
-- [ ] Bundled manifest
-- [ ] macOS paths
-- [ ] Linux paths
-- [ ] Tool grouping
-- [ ] Model/cache/log/session classification
-- [ ] Removal consequence
-- [ ] Safety classification
-- [ ] Wire page
-- [ ] False-positive review
+- [x] Manifest model
+- [x] Bundled manifest
+- [x] macOS paths
+- [x] Linux paths
+- [x] Tool grouping
+- [x] Model/cache/log/session classification
+- [x] Removal consequence
+- [x] Safety classification
+- [x] Wire page
+- [x] False-positive review
 
 ---
 

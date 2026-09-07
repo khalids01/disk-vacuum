@@ -1,0 +1,22 @@
+[
+  {"suffix":"/.ollama/models","tool":"Ollama","dataType":"models","safety":"review","consequence":"Removes local models; Ollama must download them again."},
+  {"suffix":"/.cache/huggingface/hub","tool":"Hugging Face","dataType":"models","safety":"review","consequence":"Removes downloaded model snapshots; tools must download them again."},
+  {"suffix":"/.cache/huggingface/assets","tool":"Hugging Face","dataType":"cache","safety":"likelySafe","consequence":"Clears downloaded auxiliary cache data; tools recreate it on demand."},
+  {"suffix":"/.lmstudio/models","tool":"LM Studio","dataType":"models","safety":"review","consequence":"Removes local models; LM Studio must download or import them again."},
+  {"suffix":"/lm studio/models","tool":"LM Studio","dataType":"models","safety":"review","consequence":"Removes local models; LM Studio must download or import them again."},
+  {"suffix":"/cursor/cache","tool":"Cursor","dataType":"cache","safety":"likelySafe","consequence":"Clears Cursor cache data; it is recreated as needed."},
+  {"suffix":"/cursor/cacheddata","tool":"Cursor","dataType":"cache","safety":"likelySafe","consequence":"Clears cached editor data; Cursor recreates it as needed."},
+  {"suffix":"/cursor/logs","tool":"Cursor","dataType":"logs","safety":"likelySafe","consequence":"Clears local Cursor diagnostic logs."},
+  {"suffix":"/cursor/user/workspacestorage","tool":"Cursor","dataType":"sessions","safety":"review","consequence":"May remove local workspace and session state; review carefully."},
+  {"suffix":"/.claude/projects","tool":"Claude Code","dataType":"sessions","safety":"review","consequence":"May remove local Claude Code project conversation history."},
+  {"suffix":"/.claude/logs","tool":"Claude Code","dataType":"logs","safety":"likelySafe","consequence":"Clears local Claude Code logs."},
+  {"suffix":"/.codex/sessions","tool":"Codex","dataType":"sessions","safety":"review","consequence":"Removes local Codex session history; review carefully."},
+  {"suffix":"/.codex/log","tool":"Codex","dataType":"logs","safety":"likelySafe","consequence":"Clears local Codex diagnostic logs."},
+  {"suffix":"/com.openai.chat/cache","tool":"ChatGPT","dataType":"cache","safety":"likelySafe","consequence":"Clears ChatGPT desktop cache data; it is recreated as needed."},
+  {"suffix":"/com.openai.chat/logs","tool":"ChatGPT","dataType":"logs","safety":"likelySafe","consequence":"Clears local ChatGPT desktop logs."},
+  {"suffix":"/windsurf/cache","tool":"Windsurf","dataType":"cache","safety":"likelySafe","consequence":"Clears Windsurf cache data; it is recreated as needed."},
+  {"suffix":"/windsurf/logs","tool":"Windsurf","dataType":"logs","safety":"likelySafe","consequence":"Clears local Windsurf diagnostic logs."},
+  {"suffix":"/.continue/index","tool":"Continue","dataType":"indexes","safety":"review","consequence":"Removes generated code indexes; rebuilding may take time."},
+  {"suffix":"/.continue/logs","tool":"Continue","dataType":"logs","safety":"likelySafe","consequence":"Clears local Continue logs."},
+  {"suffix":"/.continue/sessions","tool":"Continue","dataType":"sessions","safety":"review","consequence":"May remove local Continue session history."}
+]

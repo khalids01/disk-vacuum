@@ -268,6 +268,50 @@ pub struct LargeFilesPage {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum AiStorageDataType {
+    Models,
+    Cache,
+    Logs,
+    Sessions,
+    Indexes,
+    Other,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiStorageItem {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub path: String,
+    pub name: String,
+    pub tool: String,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+    pub data_type: AiStorageDataType,
+    pub safety: LargeFileSafety,
+    pub consequence: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiStorageGroup {
+    pub tool: String,
+    pub total_size_bytes: u64,
+    pub items: Vec<AiStorageItem>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiStorageReport {
+    pub total_size_bytes: u64,
+    pub safe_cache_size_bytes: u64,
+    pub model_size_bytes: u64,
+    pub item_count: usize,
+    pub groups: Vec<AiStorageGroup>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DeveloperArtifactKind {
     NodeModules,
     BuildOutput,

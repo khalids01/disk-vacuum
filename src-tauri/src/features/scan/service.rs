@@ -21,7 +21,7 @@ use crate::{
         classification::{classify_path, CATEGORY_COUNT},
         filesystem_identity::{allocated_size, filesystem_id, hard_link_identity, FileIdentity},
         model::{
-            CompletedScan, DeveloperCleanupReport, LargeFilesPage, LargeFilesQuery, ScanCapacity,
+            CompletedScan, AiStorageReport, DeveloperCleanupReport, LargeFilesPage, LargeFilesQuery, ScanCapacity,
             ScanCategory, ScanCategorySummary, ScanCommandError, ScanDirectoryPage,
             ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary, ScanProgress,
             ScanProgressStage, ScanSearchResponse, ScanSummary, ScanTreemapSummary,
@@ -356,6 +356,12 @@ pub async fn get_scan_treemap(
     tauri::async_runtime::spawn_blocking(move || repository.treemap(directory_id, max_nodes))
         .await
         .map_err(|_| "DiskVacuum could not query the space map.".to_owned())?
+}
+
+#[tauri::command]
+pub async fn get_ai_storage(state: State<'_, AppState>) -> Result<AiStorageReport, String> {
+    let repository = state.scan_repository.clone();
+    tauri::async_runtime::spawn_blocking(move || repository.ai_storage()).await.map_err(|_| "DiskVacuum could not analyze AI storage.".to_owned())?
 }
 
 #[tauri::command]
