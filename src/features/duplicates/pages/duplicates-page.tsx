@@ -43,11 +43,14 @@ import {
 } from "@/components/ui/select";
 import {
   analyzeDuplicates,
+  type CleanupResult,
   cancelDuplicateAnalysis,
   type DuplicateFile,
   type DuplicateProgress,
   type DuplicateReport,
   getDuplicateReport,
+  previewDuplicateCleanup,
+  trashDuplicateFiles,
 } from "@/features/duplicates/api/duplicates-api";
 import { DuplicatesEmptySection } from "@/features/duplicates/components/sections/duplicates-empty-section";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
@@ -275,6 +278,14 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
               files={selectedFiles}
               groupCount={selectedGroupCount}
               totalSize={selectedSize}
+              onComplete={async (result) => {
+                const updated = await getDuplicateReport();
+                setReport(updated);
+                selectedIds.current.clear();
+                setSelectedSize(0);
+                setSelectionVersion((version) => version + 1);
+                return result;
+              }}
             />
           )}
         </div>
@@ -409,69 +420,174 @@ function DuplicateReviewDialog({
   files,
   groupCount,
   totalSize,
+  onComplete,
 }: {
   files: DuplicateFile[];
   groupCount: number;
   totalSize: number;
+  onComplete: (result: CleanupResult) => Promise<CleanupResult>;
 }) {
+  const [open, setOpen] = useState(false);
+  const [result, setResult] = useState<CleanupResult | null>(null);
+  const fileIds = files.map((file) => file.id);
+  const preview = useMutation({
+    mutationFn: () => previewDuplicateCleanup(fileIds),
+  });
+  const cleanup = useMutation({
+    mutationFn: () => trashDuplicateFiles(fileIds),
+    onSuccess: async (value) => setResult(await onComplete(value)),
+  });
+  const error = preview.error ?? cleanup.error;
+  const ready = preview.data?.ready ?? [];
+  const rejected = preview.data?.rejected ?? [];
   return (
-    <Dialog>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) {
+          setResult(null);
+          cleanup.reset();
+          preview.mutate();
+        }
+      }}
+    >
       <DialogTrigger render={<Button className="sm:col-span-3" />}>
         Review selected copies
       </DialogTrigger>
       <DialogContent className="flex max-h-[min(88vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-border p-5 pr-12">
-          <DialogTitle>Review duplicate copies</DialogTitle>
+          <DialogTitle>
+            {result ? "Cleanup complete" : "Review duplicate copies"}
+          </DialogTitle>
           <DialogDescription>
-            These exact copies are selected. Nothing will be moved until the
-            safety checks and final confirmation are available.
+            {result
+              ? "The validated copies were processed using your system Trash."
+              : "Every path is revalidated against the current scan before Trash is enabled."}
           </DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <ReviewMetric
-              label="Selected size"
-              value={formatBytes(totalSize)}
-            />
-            <ReviewMetric
-              label="Copies"
-              value={files.length.toLocaleString()}
-            />
-            <ReviewMetric
-              label="Duplicate groups"
-              value={groupCount.toLocaleString()}
-            />
-          </div>
-          <div className="mt-4 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
-            <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
-            <p>
-              DiskVacuum will revalidate every path, file size, scan scope, and
-              protected location before enabling Trash.
-            </p>
-          </div>
-          <div className="mt-5 space-y-2">
-            {files.map((file) => (
-              <div
-                key={file.id}
-                className="rounded-lg border border-border bg-muted/20 p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <p className="min-w-0 truncate font-medium">{file.name}</p>
-                  <span className="shrink-0 text-sm font-medium">
-                    {formatBytes(file.sizeBytes)}
-                  </span>
-                </div>
-                <PathText className="mt-1 block">{file.path}</PathText>
+          {result ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <ReviewMetric
+                  label="Moved to Trash"
+                  value={result.movedIds.length.toLocaleString()}
+                />
+                <ReviewMetric
+                  label="Space reclaimed"
+                  value={formatBytes(result.reclaimedSizeBytes)}
+                />
+                <ReviewMetric
+                  label="Failed"
+                  value={result.failed.length.toLocaleString()}
+                />
               </div>
-            ))}
-          </div>
+              {result.failed.map((failure) => (
+                <div
+                  key={failure.id}
+                  className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm"
+                >
+                  <PathText>{failure.path}</PathText>
+                  <p className="mt-1 text-destructive">{failure.reason}</p>
+                </div>
+              ))}
+              <p className="text-sm text-muted-foreground">
+                Run a new scan to refresh storage totals across the app.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <ReviewMetric
+                  label="Validated size"
+                  value={formatBytes(
+                    preview.data?.reclaimableSizeBytes ?? totalSize,
+                  )}
+                />
+                <ReviewMetric
+                  label="Copies"
+                  value={files.length.toLocaleString()}
+                />
+                <ReviewMetric
+                  label="Groups"
+                  value={groupCount.toLocaleString()}
+                />
+              </div>
+              {preview.isPending && (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+                  <LoaderCircleIcon className="size-4 animate-spin" />
+                  Validating scope, metadata, symlinks, and protected paths…
+                </div>
+              )}
+              {error && (
+                <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                  {String(error)}
+                </div>
+              )}
+              {rejected.length > 0 && (
+                <div className="mt-4 flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+                  <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" />
+                  <p>
+                    {rejected.length.toLocaleString()} selected files failed
+                    validation. Close this review and adjust the selection.
+                  </p>
+                </div>
+              )}
+              <div className="mt-5 space-y-2">
+                {files.map((file) => {
+                  const issue = rejected.find((item) => item.id === file.id);
+                  return (
+                    <div
+                      key={file.id}
+                      className={`rounded-lg border p-3 ${issue ? "border-destructive/30 bg-destructive/10" : "border-border bg-muted/20"}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 truncate font-medium">
+                          {file.name}
+                        </p>
+                        <span className="shrink-0 text-sm font-medium">
+                          {formatBytes(file.sizeBytes)}
+                        </span>
+                      </div>
+                      <PathText className="mt-1 block">{file.path}</PathText>
+                      {issue && (
+                        <p className="mt-1 text-xs text-destructive">
+                          {issue.reason}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
         <DialogFooter className="m-0">
-          <DialogClose render={<Button variant="outline" />}>Close</DialogClose>
-          <Button disabled>
-            <Trash2Icon />
-            Safety validation required
-          </Button>
+          <DialogClose render={<Button variant="outline" />}>
+            {result ? "Done" : "Cancel"}
+          </DialogClose>
+          {!result && (
+            <Button
+              variant="destructive"
+              disabled={
+                !preview.data ||
+                rejected.length > 0 ||
+                ready.length === 0 ||
+                cleanup.isPending
+              }
+              onClick={() => cleanup.mutate()}
+            >
+              {cleanup.isPending ? (
+                <LoaderCircleIcon className="animate-spin" />
+              ) : (
+                <Trash2Icon />
+              )}
+              {cleanup.isPending
+                ? "Moving to Trash…"
+                : `Move ${ready.length.toLocaleString()} to Trash`}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

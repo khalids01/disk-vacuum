@@ -98,7 +98,7 @@ fn analyze(
                 }
                 let hash = partial_hash(&item.path, item.size_bytes);
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if n % 32 == 0 || n == total {
+                if n.is_multiple_of(32) || n == total {
                     emit(&app, "partialHash", n, total)
                 }
                 hash.ok().map(|hash| (hash, item))
@@ -129,7 +129,7 @@ fn analyze(
                 }
                 let hash = full_hash(&item.path);
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
-                if n % 16 == 0 || n == total {
+                if n.is_multiple_of(16) || n == total {
                     emit(&app, "fullHash", n, total)
                 }
                 hash.ok().map(|hash| (hash, item))

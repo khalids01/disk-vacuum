@@ -154,6 +154,10 @@ impl ScanRepository {
             .clone()
             .ok_or_else(|| "No completed scan is available.".into())
     }
+    pub fn scan_root_path(&self) -> Result<PathBuf, String> {
+        Ok(self.metadata()?.root_path)
+    }
+
     fn metadata(&self) -> Result<Metadata, String> {
         let bytes = fs::read(self.generation()?.join(META)).map_err(ioe)?;
         serde_json::from_slice(&bytes).map_err(|e| format!("Invalid scan metadata: {e}"))

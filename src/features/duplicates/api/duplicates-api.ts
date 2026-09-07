@@ -25,6 +25,26 @@ export interface DuplicateReport {
   reclaimableSizeBytes: number;
   groups: DuplicateGroup[];
 }
+export interface CleanupIssue {
+  id: number;
+  path: string;
+  reason: string;
+}
+export interface CleanupPreview {
+  ready: DuplicateFile[];
+  rejected: CleanupIssue[];
+  reclaimableSizeBytes: number;
+}
+export interface CleanupResult {
+  movedIds: number[];
+  failed: CleanupIssue[];
+  reclaimedSizeBytes: number;
+}
+export const previewDuplicateCleanup = (fileIds: number[]) =>
+  invoke<CleanupPreview>("preview_duplicate_cleanup", { fileIds });
+export const trashDuplicateFiles = (fileIds: number[]) =>
+  invoke<CleanupResult>("trash_duplicate_files", { fileIds });
+
 export const analyzeDuplicates = (minimumSizeBytes: number) =>
   invoke<DuplicateReport>("analyze_duplicates", { minimumSizeBytes });
 export const cancelDuplicateAnalysis = () =>

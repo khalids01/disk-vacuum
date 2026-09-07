@@ -24,6 +24,8 @@ pub fn run() {
             features::duplicates::analyze_duplicates,
             features::duplicates::cancel_duplicate_analysis,
             features::duplicates::get_duplicate_report,
+            features::cleanup::preview_duplicate_cleanup,
+            features::cleanup::trash_duplicate_files,
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
             features::scan::service::get_ai_storage,
