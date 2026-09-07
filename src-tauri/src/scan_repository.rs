@@ -3,11 +3,11 @@ use crate::features::{
     developer_cleanup::{detect_artifact, is_candidate_name},
     scan::model::{
         AiStorageGroup, AiStorageItem, AiStorageReport, DeveloperCleanupGroup,
-        DeveloperCleanupItem, DeveloperCleanupReport, LargeFileItem, LargeFileSafety,
-        LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem, ScanCategory,
-        ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind, ScanNodeSummary,
-        ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode, ScanTreemapNodeKind,
-        ScanTreemapSummary,
+        DeveloperCleanupItem, DeveloperCleanupReport, DuplicateCandidate, LargeFileItem,
+        LargeFileSafety, LargeFileSort, LargeFilesPage, LargeFilesQuery, ScanBreadcrumbItem,
+        ScanCategory, ScanDirectoryPage, ScanDirectoryRecord, ScanNodeDetails, ScanNodeKind,
+        ScanNodeSummary, ScanSearchResponse, ScanSearchResult, ScanSummary, ScanTreemapNode,
+        ScanTreemapNodeKind, ScanTreemapSummary,
     },
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -18,6 +18,7 @@ use std::{
     io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     sync::{
+        atomic::{AtomicBool, Ordering as AtomicOrdering},
         mpsc::{self, SyncSender},
         Arc, Mutex, RwLock,
     },
@@ -323,6 +324,43 @@ impl ScanRepository {
             }
         }
     }
+    pub fn duplicate_candidates(
+        &self,
+        minimum_size: u64,
+        cancellation: &AtomicBool,
+    ) -> Result<Vec<DuplicateCandidate>, String> {
+        let mut counts = HashMap::<u64, u32>::new();
+        self.for_each_node(|_, node| {
+            if cancellation.load(AtomicOrdering::Relaxed) {
+                return Err("Duplicate analysis cancelled.".into());
+            }
+            if node.kind == ScanNodeKind::File && node.size_bytes >= minimum_size {
+                *counts.entry(node.size_bytes).or_default() += 1;
+            }
+            Ok(())
+        })?;
+        counts.retain(|_, count| *count > 1);
+        let mut candidates = Vec::new();
+        self.for_each_node(|parent, node| {
+            if cancellation.load(AtomicOrdering::Relaxed) {
+                return Err("Duplicate analysis cancelled.".into());
+            }
+            if node.kind == ScanNodeKind::File && counts.contains_key(&node.size_bytes) {
+                let path = self.path(parent, &node.name)?;
+                candidates.push(DuplicateCandidate {
+                    id: node.id,
+                    parent_directory_id: parent,
+                    path,
+                    name: node.name,
+                    size_bytes: node.size_bytes,
+                    modified_at_unix_seconds: node.modified_at_unix_seconds,
+                });
+            }
+            Ok(())
+        })?;
+        Ok(candidates)
+    }
+
     pub fn search(&self, q: &str, requested: usize) -> Result<ScanSearchResponse, String> {
         let started = Instant::now();
         let q = q.trim();

@@ -363,6 +363,51 @@ pub struct ScanBreadcrumbItem {
     pub name: String,
 }
 
+#[derive(Clone, Debug)]
+pub struct DuplicateCandidate {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub path: String,
+    pub name: String,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateFile {
+    pub id: u64,
+    pub parent_directory_id: u64,
+    pub path: String,
+    pub name: String,
+    pub size_bytes: u64,
+    pub modified_at_unix_seconds: Option<u64>,
+    pub recommended_keep: bool,
+}
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateGroup {
+    pub id: String,
+    pub file_size_bytes: u64,
+    pub reclaimable_size_bytes: u64,
+    pub files: Vec<DuplicateFile>,
+}
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateReport {
+    pub group_count: usize,
+    pub duplicate_file_count: usize,
+    pub reclaimable_size_bytes: u64,
+    pub groups: Vec<DuplicateGroup>,
+}
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DuplicateProgress {
+    pub stage: String,
+    pub processed: u64,
+    pub total: u64,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScanDirectoryPage {

@@ -499,6 +499,12 @@ fn store_completed_scan(
         )
     })?;
     *current_scan = Some(summary.clone());
+    *state.duplicate_report.lock().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not clear stale duplicate results.",
+        )
+    })? = None;
     Ok(summary)
 }
 

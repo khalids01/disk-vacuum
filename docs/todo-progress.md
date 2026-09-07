@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 8 — AI Storage**
-- Current task: **Review AI Storage detection on Linux**
+- Current phase: **Backend Phase 9 — Duplicates**
+- Current task: **Review Duplicate Finder on Linux**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -287,20 +287,20 @@ Only create when needed.
 
 # Phase 11 — Duplicate Finder UI
 
-- [ ] Header metrics
-- [ ] Duplicate group count
-- [ ] Wasted-space metric
-- [ ] Smart select action
-- [ ] Group component
-- [ ] Keep recommendation
-- [ ] Copy rows
-- [ ] Manual selection
-- [ ] Never-select-all-copies safeguard in UI
-- [ ] Path display
-- [ ] Modified date
-- [ ] Empty state
-- [ ] Loading/progress state
-- [ ] Mobile group cards
+- [x] Header metrics
+- [x] Duplicate group count
+- [x] Wasted-space metric
+- [x] Smart select action
+- [x] Group component
+- [x] Keep recommendation
+- [x] Copy rows
+- [x] Manual selection
+- [x] Never-select-all-copies safeguard in UI
+- [x] Path display
+- [x] Modified date
+- [x] Empty state
+- [x] Loading/progress state
+- [x] Mobile group cards
 
 ---
 
@@ -555,19 +555,19 @@ Only create when needed.
 
 # Backend Phase 9 — Duplicates
 
-- [ ] Candidate grouping by exact size
-- [ ] Partial hash
-- [ ] Full hash
-- [ ] Parallel hashing
-- [ ] I/O pressure controlled
-- [ ] Cancellation
-- [ ] Progress
-- [ ] Wasted-space calculation
-- [ ] Group output
-- [ ] Smart selection logic
-- [ ] Guarantee at least one copy kept
-- [ ] Wire page
-- [ ] Duplicate test fixtures
+- [x] Candidate grouping by exact size
+- [x] Partial hash
+- [x] Full hash
+- [x] Parallel hashing
+- [x] I/O pressure controlled
+- [x] Cancellation
+- [x] Progress
+- [x] Wasted-space calculation
+- [x] Group output
+- [x] Smart selection logic
+- [x] Guarantee at least one copy kept
+- [x] Wire page
+- [x] Duplicate test fixtures
 
 ---
 

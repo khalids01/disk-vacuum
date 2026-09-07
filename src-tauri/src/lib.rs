@@ -21,6 +21,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            features::duplicates::analyze_duplicates,
+            features::duplicates::cancel_duplicate_analysis,
+            features::duplicates::get_duplicate_report,
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
             features::scan::service::get_ai_storage,
