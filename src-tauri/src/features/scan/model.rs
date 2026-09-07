@@ -135,6 +135,7 @@ pub struct ScanDirectoryRecord {
     pub id: u64,
     pub parent_id: Option<u64>,
     pub name: String,
+    pub path: PathBuf,
     pub children: Vec<ScanNodeSummary>,
 }
 

@@ -185,6 +185,7 @@ mod tests {
                 ScanDirectoryRecord {
                     id: 0,
                     parent_id: None,
+                    path: std::path::PathBuf::new(),
                     name: "Home".into(),
                     children: files,
                 },

@@ -687,6 +687,7 @@ fn scan_directory(
         id: ROOT_DIRECTORY_ID,
         parent_id: None,
         name: target_label.to_owned(),
+        path: root.to_path_buf(),
         children: root_items,
     })?;
     accumulator.emit_progress(true);
@@ -834,6 +835,7 @@ fn scan_entry(
                 .file_name()
                 .map(|name| name.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+            path: path.to_path_buf(),
             children,
         })?;
         return Ok(Some(MeasuredEntry {

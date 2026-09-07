@@ -607,20 +607,28 @@ fn write_generation(
     }
     let mut blocks = BufWriter::new(file.unwrap());
     let mut lookup = Vec::new();
+    let mut developer_items = Vec::new();
+    let mut large_file_items = Vec::new();
     let _ = ready.send(Ok(()));
     let meta = loop {
         match rx.recv() {
             Ok(Message::Directory(d)) => {
+                collect_directory_derivatives(&d, &mut developer_items, &mut large_file_items);
                 let off = blocks.stream_position().map_err(ioe)?;
                 lookup.push((d.id, off));
                 write_directory(&mut blocks, d)?
             }
             Ok(Message::Complete { root_path, summary }) => {
+                write_json_cache(
+                    &build.join(DEVELOPER_CACHE),
+                    &developer_report(developer_items),
+                )?;
+                write_json_cache(&build.join(LARGE_FILES_CACHE), &large_file_items)?;
                 break Metadata {
                     version: 1,
                     root_path,
                     summary,
-                }
+                };
             }
             Err(_) => return Err("Scan cancelled.".into()),
         }
@@ -724,6 +732,66 @@ fn write_u64<W: Write>(w: &mut W, v: u64) -> Result<(), String> {
 fn write_u32<W: Write>(w: &mut W, v: u32) -> Result<(), String> {
     w.write_all(&v.to_le_bytes()).map_err(ioe)
 }
+fn collect_directory_derivatives(
+    directory: &ScanDirectoryRecord,
+    developer_items: &mut Vec<DeveloperCleanupItem>,
+    large_file_items: &mut Vec<LargeFileItem>,
+) {
+    let has_developer_candidates = directory
+        .children
+        .iter()
+        .any(|node| node.kind == ScanNodeKind::Directory && is_candidate_name(&node.name));
+    let sibling_names = has_developer_candidates.then(|| {
+        directory
+            .children
+            .iter()
+            .map(|node| node.name.to_ascii_lowercase())
+            .collect::<Vec<_>>()
+    });
+    for node in &directory.children {
+        if node.kind == ScanNodeKind::Directory && is_candidate_name(&node.name) {
+            let path = directory.path.join(&node.name);
+            if let Some(detection) = detect_artifact(
+                &node.name,
+                &path.to_string_lossy(),
+                sibling_names.as_deref().unwrap_or_default(),
+            ) {
+                developer_items.push(DeveloperCleanupItem {
+                    id: node.id,
+                    parent_directory_id: directory.id,
+                    name: node.name.clone(),
+                    path: path.to_string_lossy().into(),
+                    project_name: directory.name.clone(),
+                    size_bytes: node.size_bytes,
+                    modified_at_unix_seconds: node.modified_at_unix_seconds,
+                    kind: detection.kind,
+                    safety: detection.safety,
+                    explanation: detection.explanation.into(),
+                    regeneration: detection.regeneration.into(),
+                });
+            }
+        }
+        if node.kind == ScanNodeKind::File && node.size_bytes >= LARGE_FILES_CACHE_MINIMUM {
+            let path = directory.path.join(&node.name);
+            large_file_items.push(LargeFileItem {
+                id: node.id,
+                parent_directory_id: directory.id,
+                name: node.name.clone(),
+                path: path.to_string_lossy().into(),
+                parent_path: directory.path.to_string_lossy().into(),
+                extension: Path::new(&node.name)
+                    .extension()
+                    .and_then(|value| value.to_str())
+                    .map(str::to_lowercase),
+                size_bytes: node.size_bytes,
+                modified_at_unix_seconds: node.modified_at_unix_seconds,
+                category: node.category,
+                safety: safety(node.category),
+            });
+        }
+    }
+}
+
 fn read_u64<R: Read>(r: &mut R) -> Result<u64, String> {
     let mut b = [0; 8];
     r.read_exact(&mut b).map_err(ioe)?;
@@ -784,6 +852,51 @@ fn dominant(nodes: &[ScanNodeSummary]) -> ScanCategory {
         .max_by_key(|c| a[c.index()])
         .unwrap_or(ScanCategory::Other)
 }
+fn developer_report(mut detected: Vec<DeveloperCleanupItem>) -> DeveloperCleanupReport {
+    detected.sort_by_key(|item| item.path.replace('\\', "/").len());
+    let mut roots = Vec::<String>::new();
+    detected.retain(|item| {
+        let path = item.path.replace('\\', "/");
+        if roots
+            .iter()
+            .any(|root| path.starts_with(&format!("{root}/")))
+        {
+            false
+        } else {
+            roots.push(path);
+            true
+        }
+    });
+    let total_count = detected.len();
+    let total_size_bytes = detected.iter().map(|item| item.size_bytes).sum();
+    let mut grouped = BTreeMap::new();
+    for item in detected {
+        grouped.entry(item.kind).or_insert_with(Vec::new).push(item);
+    }
+    let groups = grouped
+        .into_iter()
+        .map(|(kind, mut items)| {
+            items.sort_by(|a, b| b.size_bytes.cmp(&a.size_bytes).then(a.path.cmp(&b.path)));
+            let item_count = items.len();
+            let total_size_bytes = items.iter().map(|item| item.size_bytes).sum();
+            items.truncate(300);
+            DeveloperCleanupGroup {
+                kind,
+                item_count,
+                total_size_bytes,
+                items,
+            }
+        })
+        .collect::<Vec<_>>();
+    let displayed_count = groups.iter().map(|group| group.items.len()).sum();
+    DeveloperCleanupReport {
+        total_count,
+        total_size_bytes,
+        displayed_count,
+        groups,
+    }
+}
+
 fn read_json_cache<T: DeserializeOwned>(path: &Path) -> Option<T> {
     let bytes = fs::read(path).ok()?;
     serde_json::from_slice(&bytes).ok()
@@ -966,6 +1079,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 1,
                 parent_id: Some(0),
+                path: PathBuf::new(),
                 name: "Documents".into(),
                 children: vec![
                     ScanNodeSummary {
@@ -999,6 +1113,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 0,
                 parent_id: None,
+                path: PathBuf::from("/home/tester"),
                 name: label.into(),
                 children: vec![ScanNodeSummary {
                     id: 1,
@@ -1077,6 +1192,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 11,
                 parent_id: Some(10),
+                path: PathBuf::from("/home/tester/my-app/node_modules"),
                 name: "node_modules".into(),
                 children: vec![ScanNodeSummary {
                     id: 12,
@@ -1092,6 +1208,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 10,
                 parent_id: Some(0),
+                path: PathBuf::from("/home/tester/my-app"),
                 name: "my-app".into(),
                 children: vec![
                     ScanNodeSummary {
@@ -1117,6 +1234,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 0,
                 parent_id: None,
+                path: PathBuf::new(),
                 name: "Home".into(),
                 children: vec![ScanNodeSummary {
                     id: 10,
@@ -1154,6 +1272,7 @@ mod tests {
             .write_directory(ScanDirectoryRecord {
                 id: 0,
                 parent_id: None,
+                path: PathBuf::new(),
                 name: "Partial".into(),
                 children: vec![],
             })

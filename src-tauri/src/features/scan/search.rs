@@ -262,6 +262,7 @@ mod tests {
                     ScanDirectoryRecord {
                         id: 0,
                         parent_id: None,
+                        path: std::path::PathBuf::new(),
                         name: "Home".to_owned(),
                         children: vec![ScanNodeSummary {
                             id: 1,
@@ -278,6 +279,7 @@ mod tests {
                     ScanDirectoryRecord {
                         id: 1,
                         parent_id: Some(0),
+                        path: std::path::PathBuf::new(),
                         name: "Documents".to_owned(),
                         children: vec![
                             file(2, "Report.PDF", 10),
