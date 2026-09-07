@@ -61,6 +61,7 @@ struct ScanAccumulator {
     cancellation: Arc<AtomicBool>,
     target_label: String,
     root_filesystem_id: Option<u64>,
+    exclusions: Vec<PathBuf>,
     capacity: Option<ScanCapacity>,
     seen_hard_links: Mutex<HashSet<FileIdentity>>,
     started_at: Instant,
@@ -88,6 +89,7 @@ impl ScanAccumulator {
         cancellation: Arc<AtomicBool>,
         target_label: &str,
         root_filesystem_id: Option<u64>,
+        exclusions: Vec<PathBuf>,
         capacity: Option<ScanCapacity>,
         index_writer: ScanWriteSession,
     ) -> Self {
@@ -98,6 +100,7 @@ impl ScanAccumulator {
             cancellation,
             target_label: target_label.to_owned(),
             root_filesystem_id,
+            exclusions,
             capacity,
             seen_hard_links: Mutex::new(HashSet::new()),
             started_at,
@@ -255,8 +258,14 @@ pub async fn scan_home_directory(
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
+    let exclusions = state.settings.exclusion_paths().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not read scan exclusions.",
+        )
+    })?;
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_home_directory_blocking(app_handle, cancellation, repository)
+        scan_home_directory_blocking(app_handle, cancellation, repository, exclusions)
     })
     .await;
 
@@ -275,8 +284,14 @@ pub async fn scan_system_storage(
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
+    let exclusions = state.settings.exclusion_paths().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not read scan exclusions.",
+        )
+    })?;
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_system_storage_blocking(app_handle, cancellation, repository)
+        scan_system_storage_blocking(app_handle, cancellation, repository, exclusions)
     })
     .await;
 
@@ -296,8 +311,14 @@ pub async fn scan_directory_path(
     let active_scan = begin_scan(&state)?;
     let cancellation = active_scan.cancellation.clone();
     let repository = state.scan_repository.clone();
+    let exclusions = state.settings.exclusion_paths().map_err(|_| {
+        ScanCommandError::new(
+            "state_unavailable",
+            "DiskVacuum could not read scan exclusions.",
+        )
+    })?;
     let task_result = tauri::async_runtime::spawn_blocking(move || {
-        scan_selected_directory_blocking(path, app_handle, cancellation, repository)
+        scan_selected_directory_blocking(path, app_handle, cancellation, repository, exclusions)
     })
     .await;
 
@@ -520,6 +541,7 @@ fn scan_system_storage_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
     repository: ScanRepository,
+    exclusions: Vec<PathBuf>,
 ) -> ScanResult<CompletedScan> {
     let (system_root, capacity) = resolve_system_storage()?;
     scan_directory(
@@ -527,6 +549,7 @@ fn scan_system_storage_blocking(
         "System storage",
         Some(app_handle),
         Some(capacity),
+        exclusions,
         cancellation,
         repository,
     )
@@ -536,6 +559,7 @@ fn scan_home_directory_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
     repository: ScanRepository,
+    exclusions: Vec<PathBuf>,
 ) -> ScanResult<CompletedScan> {
     let home_directory = resolve_home_directory()?;
     scan_directory(
@@ -543,6 +567,7 @@ fn scan_home_directory_blocking(
         "Home directory",
         Some(app_handle),
         None,
+        exclusions,
         cancellation,
         repository,
     )
@@ -553,6 +578,7 @@ fn scan_selected_directory_blocking(
     app_handle: AppHandle,
     cancellation: Arc<AtomicBool>,
     repository: ScanRepository,
+    exclusions: Vec<PathBuf>,
 ) -> ScanResult<CompletedScan> {
     let selected_directory = validate_scan_root(Path::new(&path))?;
     let folder_name = selected_directory
@@ -566,6 +592,7 @@ fn scan_selected_directory_blocking(
         &target_label,
         Some(app_handle),
         None,
+        exclusions,
         cancellation,
         repository,
     )
@@ -656,6 +683,7 @@ fn scan_directory(
     target_label: &str,
     app_handle: Option<AppHandle>,
     capacity: Option<ScanCapacity>,
+    exclusions: Vec<PathBuf>,
     cancellation: Arc<AtomicBool>,
     repository: ScanRepository,
 ) -> ScanResult<CompletedScan> {
@@ -672,6 +700,7 @@ fn scan_directory(
         cancellation,
         target_label,
         root_filesystem_id,
+        exclusions,
         capacity,
         index_writer,
     ));
@@ -781,6 +810,13 @@ fn scan_entry(
     parent_id: u64,
     accumulator: &Arc<ScanAccumulator>,
 ) -> ScanResult<Option<MeasuredEntry>> {
+    if accumulator
+        .exclusions
+        .iter()
+        .any(|excluded| path.starts_with(excluded))
+    {
+        return Ok(None);
+    }
     accumulator.record_entry_visit()?;
 
     let metadata = match fs::symlink_metadata(path) {
@@ -987,6 +1023,7 @@ mod tests {
                 available_space_bytes: 20,
                 reserved_space_bytes: 5,
             }),
+            Vec::new(),
             Arc::new(AtomicBool::new(false)),
             repository.clone(),
         )
@@ -1058,6 +1095,7 @@ mod tests {
             "Fixture",
             None,
             None,
+            Vec::new(),
             Arc::new(AtomicBool::new(false)),
             repository,
         )
@@ -1083,7 +1121,15 @@ mod tests {
         let cancellation = Arc::new(AtomicBool::new(false));
         cancellation.store(true, Ordering::Relaxed);
 
-        let result = scan_directory(&fixture, "Fixture", None, None, cancellation, repository);
+        let result = scan_directory(
+            &fixture,
+            "Fixture",
+            None,
+            None,
+            Vec::new(),
+            cancellation,
+            repository,
+        );
 
         assert!(matches!(result, Err(ScanFailure::Cancelled)));
         fs::remove_dir_all(&fixture).expect("fixture directory should be removed");

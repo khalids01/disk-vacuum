@@ -19,12 +19,16 @@ import { getDuplicateReport } from "@/features/duplicates/api/duplicates-api";
 import { largeFilesQuery } from "@/features/large-files/api/large-files-queries";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import { settingsQuery } from "@/features/settings/api/settings-queries";
 
-const LARGE_FILE_MINIMUM_BYTES = 100 * 1024 * 1024;
+const MEBIBYTE = 1024 * 1024;
 
 export function CleanupPage() {
   const navigate = useNavigate();
   const scan = useQuery(currentScanQuery);
+  const settings = useQuery(settingsQuery);
+  const largeFileMinimumBytes =
+    (settings.data?.largeFileThresholdMb ?? 100) * MEBIBYTE;
   const scanVersion = scan.data?.completedAtUnixSeconds ?? 0;
   const enabled = scan.data !== null && scan.data !== undefined;
   const duplicates = useQuery({
@@ -40,7 +44,7 @@ export function CleanupPage() {
   const ai = useQuery({ ...aiStorageQuery(scanVersion), enabled });
   const largeFiles = useQuery({
     ...largeFilesQuery(scanVersion, {
-      minimumSizeBytes: LARGE_FILE_MINIMUM_BYTES,
+      minimumSizeBytes: largeFileMinimumBytes,
       category: null,
       safety: "likelySafe",
       extension: null,
@@ -139,7 +143,7 @@ export function CleanupPage() {
         <CleanupSourceCard
           icon={BoxesIcon}
           title="Large files"
-          description={`Likely-safe files at least ${formatBytes(LARGE_FILE_MINIMUM_BYTES)}, with filters for deeper review.`}
+          description={`Likely-safe files at least ${formatBytes(largeFileMinimumBytes)}, with filters for deeper review.`}
           count={largeFiles.data?.totalCount ?? 0}
           countLabel="likely-safe files"
           sizeBytes={largeFiles.data?.totalSizeBytes ?? 0}

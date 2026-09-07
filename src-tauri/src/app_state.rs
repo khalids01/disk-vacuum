@@ -1,5 +1,6 @@
 use crate::{
     features::scan::model::{DuplicateReport, ScanSummary},
+    features::settings::SettingsStore,
     scan_repository::ScanRepository,
 };
 use std::sync::{
@@ -13,6 +14,7 @@ pub struct AppState {
     pub next_scan_id: AtomicU64,
     pub latest_search_id: Arc<AtomicU64>,
     pub scan_repository: ScanRepository,
+    pub settings: SettingsStore,
     pub active_duplicate_scan: Mutex<Option<Arc<AtomicBool>>>,
     pub duplicate_report: Mutex<Option<DuplicateReport>>,
 }
@@ -22,13 +24,18 @@ pub struct ActiveScan {
     pub cancellation: Arc<AtomicBool>,
 }
 impl AppState {
-    pub fn new(scan_repository: ScanRepository, current_scan: Option<ScanSummary>) -> Self {
+    pub fn new(
+        scan_repository: ScanRepository,
+        current_scan: Option<ScanSummary>,
+        settings: SettingsStore,
+    ) -> Self {
         Self {
             current_scan: Mutex::new(current_scan),
             active_scan: Mutex::new(None),
             next_scan_id: AtomicU64::new(1),
             latest_search_id: Arc::new(AtomicU64::new(0)),
             scan_repository,
+            settings,
             active_duplicate_scan: Mutex::new(None),
             duplicate_report: Mutex::new(None),
         }

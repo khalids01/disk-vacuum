@@ -4,4 +4,5 @@ pub mod cleanup;
 pub mod developer_cleanup;
 pub mod duplicates;
 pub mod scan;
+pub mod settings;
 pub mod system;

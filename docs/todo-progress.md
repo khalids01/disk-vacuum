@@ -15,8 +15,8 @@
 
 ## Current Status
 
-- Current phase: **Backend Phase 9 — Duplicates**
-- Current task: **Review Duplicate Finder on Linux**
+- Current phase: **Quality, onboarding, and release readiness**
+- Current task: **Cross-platform runtime review and remaining release work**
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
@@ -55,7 +55,7 @@
 - [x] Configure TanStack Query
 - [x] Configure Zustand location for global stores
 - [x] Keep route files thin
-- [ ] Verify project still runs
+- [x] Verify project still runs
 
 ## Feature directories
 
@@ -80,11 +80,11 @@ Create only required modules; do not create empty architecture for appearance.
 
 - [x] Keep `main.rs` minimal
 - [x] Keep Tauri bootstrap in `lib.rs`
-- [ ] Add managed `app_state` when first needed
+- [x] Add managed `app_state` when first needed
 - [x] Add `features` module when first backend feature begins
-- [ ] Add `platform` module when platform behavior is introduced
-- [ ] Add `safety` module before destructive operations
-- [ ] Add `common` helpers only for proven shared logic
+- [x] Add `platform` module when platform behavior is introduced
+- [x] Add `safety` module before destructive operations
+- [x] Add `common` helpers only for proven shared logic
 - [x] Verify `cargo fmt`
 - [x] Verify `cargo clippy`
 
@@ -92,26 +92,26 @@ Create only required modules; do not create empty architecture for appearance.
 
 # Phase 3 — Theme Foundation
 
-- [ ] Tailwind configured
-- [ ] shadcn configured
-- [ ] Dark theme tokens
-- [ ] Light/system theme plumbing
-- [ ] Background tokens
-- [ ] Surface tokens
-- [ ] Border tokens
-- [ ] Text tokens
-- [ ] Primary accent tokens
-- [ ] Success/warning/danger tokens
-- [ ] Typography scale
-- [ ] Radius scale
-- [ ] Spacing conventions
-- [ ] Focus-visible styles
-- [ ] Disabled styles
+- [x] Tailwind configured
+- [x] shadcn configured
+- [x] Dark theme tokens
+- [x] Light/system theme plumbing
+- [x] Background tokens
+- [x] Surface tokens
+- [x] Border tokens
+- [x] Text tokens
+- [x] Primary accent tokens
+- [x] Success/warning/danger tokens
+- [x] Typography scale
+- [x] Radius scale
+- [x] Spacing conventions
+- [x] Focus-visible styles
+- [x] Disabled styles
 - [x] Selection styles
-- [ ] Scrollbar treatment if needed
-- [ ] Responsive breakpoint conventions
-- [ ] No Reclaim-red visual clone
-- [ ] Remove starter Vite styles/assets
+- [x] Scrollbar treatment if needed
+- [x] Responsive breakpoint conventions
+- [x] No Reclaim-red visual clone
+- [x] Remove starter Vite styles/assets
 
 ---
 
@@ -126,7 +126,7 @@ Create only required modules; do not create empty architecture for appearance.
 - [x] Navigation groups
 - [x] Active states
 - [x] Disabled states
-- [ ] Loading/badge support
+- [x] Loading/badge support
 - [x] Top command bar
 - [x] Search trigger
 - [x] Rescan action
@@ -134,13 +134,13 @@ Create only required modules; do not create empty architecture for appearance.
 
 ## Responsive
 
-- [ ] Compact desktop sidebar behavior
+- [x] Compact desktop sidebar behavior
 - [x] Tablet drawer/rail behavior
 - [x] Mobile top app bar
-- [ ] Mobile bottom navigation
-- [ ] “More” navigation sheet
-- [ ] No horizontal overflow
-- [ ] Narrow window tested
+- [x] Mobile bottom navigation
+- [x] “More” navigation sheet
+- [x] No horizontal overflow
+- [x] Narrow window tested
 
 ---
 
@@ -168,21 +168,21 @@ Only create when needed.
 
 - [x] `PageHeader`
 - [x] `SectionCard`
-- [ ] `Metric`
-- [ ] `StorageProgress`
-- [ ] `SafetyBadge`
-- [ ] `FileTypeIcon`
-- [ ] `PathText`
+- [x] `Metric`
+- [x] `StorageProgress`
+- [x] `SafetyBadge`
+- [x] `FileTypeIcon`
+- [x] `PathText`
 - [x] `EmptyState`
-- [ ] `LoadingState`
-- [ ] `ErrorState`
-- [ ] `FilterBar`
-- [ ] `SelectionSummary`
-- [ ] `ConfirmActionDialog`
-- [ ] `AppSheet`
-- [ ] `AppDialog`
-- [ ] Responsive list/table primitive if proven useful
-- [ ] No speculative “universal component” abstractions
+- [x] `LoadingState`
+- [x] `ErrorState`
+- [x] `FilterBar`
+- [x] `SelectionSummary`
+- [x] `ConfirmActionDialog`
+- [x] `AppSheet`
+- [x] `AppDialog`
+- [x] Responsive list/table primitive if proven useful
+- [x] No speculative “universal component” abstractions
 
 ---
 
@@ -190,78 +190,78 @@ Only create when needed.
 
 ## Structure
 
-- [ ] `features/overview/pages/overview-page.tsx`
-- [ ] `features/overview/components/sections`
-- [ ] Overview summary section
-- [ ] Treemap section
-- [ ] Selected-item detail section
+- [x] `features/overview/pages/overview-page.tsx`
+- [x] `features/overview/components/sections`
+- [x] Overview summary section
+- [x] Treemap section
+- [x] Selected-item detail section
 
 ## UI states
 
 - [x] No scan
 - [x] Scanning
 - [x] Scan complete
-- [ ] Scan failed
+- [x] Scan failed
 - [x] Scan cancelled
-- [ ] Permission-limited scan
+- [x] Permission-limited scan
 
 ## Treemap
 
-- [ ] Mock treemap
+- [x] Mock treemap
 - [x] Category color mapping
 - [x] Labels
 - [x] Hover
-- [ ] Selection
+- [x] Selection
 - [x] Drill-down
 - [x] Breadcrumb
 - [x] Back navigation
-- [ ] Context menu
+- [x] Context menu
 - [x] Item detail
 - [x] Mobile bottom-sheet detail
-- [ ] Tablet layout
-- [ ] Mobile layout
+- [x] Tablet layout
+- [x] Mobile layout
 
 ---
 
 # Phase 8 — Disk Explorer UI
 
-- [ ] Explorer page sections
-- [ ] Root/volume header
-- [ ] Breadcrumb
-- [ ] Back action
-- [ ] Item count
-- [ ] Sort
-- [ ] Filter layout
-- [ ] Desktop table
-- [ ] Directory row
-- [ ] File row
-- [ ] Row selection
-- [ ] Row actions
-- [ ] Empty state
-- [ ] Loading state
-- [ ] Error state
-- [ ] Mobile list-card fallback
-- [ ] Long path handling
-- [ ] Narrow-window behavior
+- [x] Explorer page sections
+- [x] Root/volume header
+- [x] Breadcrumb
+- [x] Back action
+- [x] Item count
+- [x] Sort
+- [x] Filter layout
+- [x] Desktop table
+- [x] Directory row
+- [x] File row
+- [x] Row selection
+- [x] Row actions
+- [x] Empty state
+- [x] Loading state
+- [x] Error state
+- [x] Mobile list-card fallback
+- [x] Long path handling
+- [x] Narrow-window behavior
 
 ---
 
 # Phase 9 — Cleanup Hub UI
 
-- [ ] Header metrics
-- [ ] Safe category list
-- [ ] Category accordions
-- [ ] Item counts
-- [ ] Selected size
-- [ ] Safety labels
-- [ ] Select all safe behavior
-- [ ] Review action
-- [ ] Cleanup review UI
-- [ ] Risk grouping
-- [ ] Final confirmation UI
-- [ ] Cleanup result UI
-- [ ] Mobile layout
-- [ ] Empty state
+- [x] Header metrics
+- [x] Safe category list
+- [x] Category accordions
+- [x] Item counts
+- [x] Selected size
+- [x] Safety labels
+- [x] Select all safe behavior
+- [x] Review action
+- [x] Cleanup review UI
+- [x] Risk grouping
+- [x] Final confirmation UI
+- [x] Cleanup result UI
+- [x] Mobile layout
+- [x] Empty state
 
 ---
 
@@ -341,16 +341,16 @@ Only create when needed.
 
 # Phase 14 — App Leftovers UI
 
-- [ ] Header metrics
-- [ ] Former-app grouping
-- [ ] Candidate paths
-- [ ] High-confidence state
-- [ ] Likely state
-- [ ] Review state
-- [ ] Selection
-- [ ] No ambiguous auto-select
-- [ ] Empty state
-- [ ] Mobile layout
+- [x] Header metrics
+- [x] Former-app grouping
+- [x] Candidate paths
+- [x] High-confidence state
+- [x] Likely state
+- [x] Review state
+- [x] Selection
+- [x] No ambiguous auto-select
+- [x] Empty state
+- [x] Mobile layout
 
 ---
 
@@ -370,19 +370,19 @@ Only create when needed.
 
 # Phase 16 — Settings UI
 
-- [ ] General section
-- [ ] Appearance
-- [ ] Scan preferences
-- [ ] Large-file threshold
-- [ ] Exclusions
-- [ ] Add exclusion picker
-- [ ] Remove exclusion
-- [ ] Safety guarantees
+- [x] General section
+- [x] Appearance
+- [x] Scan preferences
+- [x] Large-file threshold
+- [x] Exclusions
+- [x] Add exclusion picker
+- [x] Remove exclusion
+- [x] Safety guarantees
 - [ ] Permission status
 - [ ] Update section
-- [ ] Privacy section
+- [x] Privacy section
 - [ ] License section deferred/placeholder
-- [ ] Mobile layout
+- [x] Mobile layout
 
 ---
 
@@ -573,14 +573,14 @@ Only create when needed.
 
 # Backend Phase 10 — App Leftovers
 
-- [ ] Installed-app inventory macOS
-- [ ] Installed-app inventory Linux
-- [ ] Candidate path rules
-- [ ] Confidence model
-- [ ] High-confidence detection
-- [ ] Ambiguous results marked Review
-- [ ] Wire page
-- [ ] False-positive testing
+- [x] Installed-app inventory macOS
+- [x] Installed-app inventory Linux
+- [x] Candidate path rules
+- [x] Confidence model
+- [x] High-confidence detection
+- [x] Ambiguous results marked Review
+- [x] Wire page
+- [x] False-positive testing
 
 ---
 
@@ -611,18 +611,18 @@ Only create when needed.
 
 # Backend Phase 12 — Settings & Exclusions
 
-- [ ] Persistence mechanism
-- [ ] Theme
-- [ ] Scan preference
-- [ ] Large-file threshold
-- [ ] Exclusion add
-- [ ] Exclusion remove
-- [ ] Exclusions applied to scan
-- [ ] Exclusions applied to cleanup
+- [x] Persistence mechanism
+- [x] Theme
+- [x] Scan preference
+- [x] Large-file threshold
+- [x] Exclusion add
+- [x] Exclusion remove
+- [x] Exclusions applied to scan
+- [x] Exclusions applied to cleanup
 - [ ] Onboarding state
 - [ ] macOS permission status
 - [ ] Linux permission/skipped path support
-- [ ] Wire Settings
+- [x] Wire Settings
 
 ---
 

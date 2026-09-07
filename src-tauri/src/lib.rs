@@ -3,6 +3,7 @@ mod features;
 mod scan_repository;
 
 use app_state::AppState;
+use features::settings::SettingsStore;
 use scan_repository::ScanRepository;
 use tauri::Manager;
 
@@ -10,12 +11,14 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
-            let repository =
-                ScanRepository::open(&app.path().app_data_dir().map_err(|error| {
-                    format!("Could not resolve the app data directory: {error}")
-                })?)?;
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| format!("Could not resolve the app data directory: {error}"))?;
+            let repository = ScanRepository::open(&app_data_dir)?;
+            let settings = SettingsStore::open(&app_data_dir)?;
             let current_scan = repository.load_scan_summary()?;
-            app.manage(AppState::new(repository, current_scan));
+            app.manage(AppState::new(repository, current_scan, settings));
             Ok(())
         })
         .plugin(tauri_plugin_dialog::init())
@@ -42,7 +45,9 @@ pub fn run() {
             features::scan::service::search_scan,
             features::scan::service::scan_home_directory,
             features::scan::service::scan_system_storage,
-            features::system::get_system_info
+            features::system::get_system_info,
+            features::settings::get_settings,
+            features::settings::save_settings
         ])
         .run(tauri::generate_context!())
         .expect("error while running DiskVacuum");

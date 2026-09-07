@@ -6,6 +6,8 @@ import { ScanFolderButton } from "@/features/scan/components/scan-folder-button"
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import type { ScanTargetPreference } from "@/features/settings/api/settings-api";
+import { settingsQuery } from "@/features/settings/api/settings-queries";
 import { useScanStore } from "@/stores/scan-store";
 
 interface SidebarContentProps {
@@ -14,11 +16,11 @@ interface SidebarContentProps {
 
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const { data: currentScan } = useQuery(currentScanQuery);
+  const { data: settings } = useQuery(settingsQuery);
   const scanStatus = useScanStore((state) => state.status);
   const scanProgress = useScanStore((state) => state.progress);
   const isScanActive = scanStatus === "scanning" || scanStatus === "cancelling";
   const progressLabel = `${(scanProgress?.entriesVisited ?? 0).toLocaleString()} items inspected`;
-
   return (
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
       <div className="rounded-xl border border-border bg-card p-3">
@@ -39,17 +41,10 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
             {isScanActive ? progressLabel : "No scan selected"}
           </p>
         )}
-        <ScanSystemButton className="mt-3 w-full" size="sm" />
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <ScanHomeButton className="w-full" variant="outline" size="sm">
-            Home
-          </ScanHomeButton>
-          <ScanFolderButton variant="outline" size="sm">
-            Folder
-          </ScanFolderButton>
-        </div>
+        <PreferredScanControls
+          preference={settings?.defaultScanTarget ?? "system"}
+        />
       </div>
-
       {navigationGroups.map((group) => (
         <div key={group.label}>
           <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -72,5 +67,53 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
         </div>
       ))}
     </div>
+  );
+}
+
+function PreferredScanControls({
+  preference,
+}: {
+  preference: ScanTargetPreference;
+}) {
+  if (preference === "home")
+    return (
+      <>
+        <ScanHomeButton className="mt-3 w-full" size="sm" />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <ScanSystemButton variant="outline" size="sm">
+            System
+          </ScanSystemButton>
+          <ScanFolderButton variant="outline" size="sm">
+            Folder
+          </ScanFolderButton>
+        </div>
+      </>
+    );
+  if (preference === "folder")
+    return (
+      <>
+        <ScanFolderButton className="mt-3 w-full" size="sm" />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <ScanSystemButton variant="outline" size="sm">
+            System
+          </ScanSystemButton>
+          <ScanHomeButton variant="outline" size="sm">
+            Home
+          </ScanHomeButton>
+        </div>
+      </>
+    );
+  return (
+    <>
+      <ScanSystemButton className="mt-3 w-full" size="sm" />
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <ScanHomeButton className="w-full" variant="outline" size="sm">
+          Home
+        </ScanHomeButton>
+        <ScanFolderButton variant="outline" size="sm">
+          Folder
+        </ScanFolderButton>
+      </div>
+    </>
   );
 }

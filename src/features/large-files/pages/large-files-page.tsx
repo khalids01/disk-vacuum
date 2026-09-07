@@ -34,6 +34,7 @@ import type { ScanCategory } from "@/features/scan/api/scan-api";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
+import { settingsQuery } from "@/features/settings/api/settings-queries";
 
 const PAGE_SIZE = 100;
 const MEBIBYTE = 1024 * 1024;
@@ -54,6 +55,7 @@ const CATEGORY_OPTIONS: ScanCategory[] = [
 
 export function LargeFilesPage() {
   const { data: currentScan } = useQuery(currentScanQuery);
+  const { data: settings } = useQuery(settingsQuery);
 
   return (
     <div className="space-y-5">
@@ -66,6 +68,7 @@ export function LargeFilesPage() {
         <LargeFilesBrowser
           key={currentScan.completedAtUnixSeconds}
           scanVersion={currentScan.completedAtUnixSeconds}
+          initialThresholdMb={settings?.largeFileThresholdMb ?? 100}
         />
       ) : (
         <LargeFilesEmptySection />
@@ -74,9 +77,15 @@ export function LargeFilesPage() {
   );
 }
 
-function LargeFilesBrowser({ scanVersion }: { scanVersion: number }) {
+function LargeFilesBrowser({
+  scanVersion,
+  initialThresholdMb,
+}: {
+  scanVersion: number;
+  initialThresholdMb: number;
+}) {
   const navigate = useNavigate();
-  const [thresholdMb, setThresholdMb] = useState(100);
+  const [thresholdMb, setThresholdMb] = useState(initialThresholdMb);
   const [category, setCategory] = useState<ScanCategory | "all">("all");
   const [extension, setExtension] = useState("");
   const [safety, setSafety] = useState<LargeFileSafety | "all">("all");

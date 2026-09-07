@@ -95,7 +95,25 @@ fn build_preview(file_ids: &[u64], state: &AppState) -> Result<CleanupPreview, S
         .map_err(|_| "Duplicate state unavailable.")?
         .clone()
         .ok_or("Run duplicate analysis before reviewing cleanup.")?;
-    preview_report(file_ids, &root, report)
+    let mut preview = preview_report(file_ids, &root, report)?;
+    let mut allowed = Vec::new();
+    for file in std::mem::take(&mut preview.ready) {
+        let excluded = fs::canonicalize(&file.path)
+            .ok()
+            .is_some_and(|path| state.settings.is_excluded(&path).unwrap_or(true));
+        if excluded {
+            preview.rejected.push(CleanupIssue {
+                id: file.id,
+                path: file.path,
+                reason: "This path is protected by your exclusions.".into(),
+            });
+        } else {
+            allowed.push(file);
+        }
+    }
+    preview.ready = allowed;
+    preview.reclaimable_size_bytes = preview.ready.iter().map(|file| file.size_bytes).sum();
+    Ok(preview)
 }
 
 fn preview_report(
@@ -424,6 +442,11 @@ fn validate_targets(
                 }
                 if indexed.category == ScanCategory::System {
                     return Err("System files are protected from cleanup.".into());
+                }
+                let canonical = fs::canonicalize(&target.path)
+                    .map_err(|error| format!("Path cannot be verified: {error}"))?;
+                if state.settings.is_excluded(&canonical)? {
+                    return Err("This path is protected by your exclusions.".into());
                 }
                 validate_target_path(&root, &target.path, target.size_bytes)
             });
