@@ -8,7 +8,14 @@ import {
   PlayIcon,
   SquareIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { PageHeader } from "@/components/core/page-header";
 import { PathText } from "@/components/core/path-text";
 import { SectionCard } from "@/components/core/section-card";
@@ -72,12 +79,14 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
   const [minimumSizeMiB, setMinimumSizeMiB] = useState(10);
   const selectedIds = useRef(new Set<number>());
   const [selectedSize, setSelectedSize] = useState(0);
+  const [selectionVersion, setSelectionVersion] = useState(0);
   const job = useMutation({
     mutationFn: () => analyzeDuplicates(minimumSizeMiB * MIB),
     onMutate: () => {
       setProgress({ stage: "sizing", processed: 0, total: 0 });
       selectedIds.current.clear();
       setSelectedSize(0);
+      setSelectionVersion((version) => version + 1);
     },
     onSuccess: (r) => {
       setReport(r);
@@ -103,16 +112,26 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
         }
     selectedIds.current = next;
     setSelectedSize(size);
+    setSelectionVersion((version) => version + 1);
   };
   const toggleFile = useCallback((file: DuplicateFile) => {
     if (file.recommendedKeep) return;
     if (selectedIds.current.delete(file.id)) {
-      setSelectedSize((size) => size - file.sizeBytes);
+      startTransition(() => setSelectedSize((size) => size - file.sizeBytes));
     } else {
       selectedIds.current.add(file.id);
-      setSelectedSize((size) => size + file.sizeBytes);
+      startTransition(() => setSelectedSize((size) => size + file.sizeBytes));
     }
   }, []);
+  const inspectDirectory = useCallback(
+    (directoryId: number) => {
+      void navigate({
+        to: "/explorer",
+        search: { directoryId },
+      });
+    },
+    [navigate],
+  );
   const percent = progress?.total
     ? Math.round((progress.processed / progress.total) * 100)
     : 0;
@@ -258,68 +277,14 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
               </div>
               <div className="divide-y divide-border">
                 {group.files.map((file) => (
-                  /* biome-ignore lint/a11y/useSemanticElements: the selectable row contains its native checkbox and Inspect button. */
-                  <div
+                  <DuplicateFileRow
                     key={file.id}
-                    className="grid cursor-pointer gap-3 p-4 hover:bg-muted/40 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
-                    role="checkbox"
-                    aria-checked={selectedIds.current.has(file.id)}
-                    aria-disabled={file.recommendedKeep}
-                    tabIndex={file.recommendedKeep ? -1 : 0}
-                    onClick={() => toggleFile(file)}
-                    onKeyDown={(event) => {
-                      if (event.key === " " || event.key === "Enter") {
-                        event.preventDefault();
-                        toggleFile(file);
-                      }
-                    }}
-                  >
-                    <Checkbox
-                      checked={selectedIds.current.has(file.id)}
-                      disabled={file.recommendedKeep}
-                      aria-label={
-                        file.recommendedKeep
-                          ? `Recommended keep ${file.path}`
-                          : `Select copy ${file.path}`
-                      }
-                      onClick={(event) => event.stopPropagation()}
-                      onCheckedChange={() => toggleFile(file)}
-                    />
-                    <div className="min-w-0">
-                      <div className="flex gap-2">
-                        <p className="font-medium">{file.name}</p>
-                        {file.recommendedKeep && (
-                          <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 text-[11px] text-emerald-700">
-                            <CheckIcon className="mr-1 inline size-3" />
-                            Recommended keep
-                          </span>
-                        )}
-                      </div>
-                      <PathText className="mt-1 block">{file.path}</PathText>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Modified{" "}
-                        {file.modifiedAtUnixSeconds === null
-                          ? "date unavailable"
-                          : DATE_FORMATTER.format(
-                              new Date(file.modifiedAtUnixSeconds * 1000),
-                            )}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void navigate({
-                          to: "/explorer",
-                          search: { directoryId: file.parentDirectoryId },
-                        });
-                      }}
-                    >
-                      <FolderSearchIcon />
-                      Inspect
-                    </Button>
-                  </div>
+                    file={file}
+                    initiallyChecked={selectedIds.current.has(file.id)}
+                    selectionVersion={selectionVersion}
+                    onToggle={toggleFile}
+                    onInspect={inspectDirectory}
+                  />
                 ))}
               </div>
             </SectionCard>
@@ -329,6 +294,91 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
     </div>
   );
 }
+const DuplicateFileRow = memo(function DuplicateFileRow({
+  file,
+  initiallyChecked,
+  selectionVersion,
+  onToggle,
+  onInspect,
+}: {
+  file: DuplicateFile;
+  initiallyChecked: boolean;
+  selectionVersion: number;
+  onToggle: (file: DuplicateFile) => void;
+  onInspect: (directoryId: number) => void;
+}) {
+  const [checked, setChecked] = useState(initiallyChecked);
+  useEffect(() => {
+    void selectionVersion;
+    setChecked(initiallyChecked);
+  }, [initiallyChecked, selectionVersion]);
+  const toggle = () => {
+    if (file.recommendedKeep) return;
+    setChecked((value) => !value);
+    onToggle(file);
+  };
+  return (
+    /* biome-ignore lint/a11y/useSemanticElements: the selectable row contains its native checkbox and Inspect button. */
+    <div
+      className="grid cursor-pointer gap-3 p-4 hover:bg-muted/40 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+      role="checkbox"
+      aria-checked={checked}
+      aria-disabled={file.recommendedKeep}
+      tabIndex={file.recommendedKeep ? -1 : 0}
+      onClick={toggle}
+      onKeyDown={(event) => {
+        if (event.key === " " || event.key === "Enter") {
+          event.preventDefault();
+          toggle();
+        }
+      }}
+    >
+      <Checkbox
+        checked={checked}
+        disabled={file.recommendedKeep}
+        aria-label={
+          file.recommendedKeep
+            ? `Recommended keep ${file.path}`
+            : `Select copy ${file.path}`
+        }
+        onClick={(event) => event.stopPropagation()}
+        onCheckedChange={toggle}
+      />
+      <div className="min-w-0">
+        <div className="flex gap-2">
+          <p className="font-medium">{file.name}</p>
+          {file.recommendedKeep && (
+            <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 text-[11px] text-emerald-700">
+              <CheckIcon className="mr-1 inline size-3" />
+              Recommended keep
+            </span>
+          )}
+        </div>
+        <PathText className="mt-1 block">{file.path}</PathText>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Modified{" "}
+          {file.modifiedAtUnixSeconds === null
+            ? "date unavailable"
+            : DATE_FORMATTER.format(
+                new Date(file.modifiedAtUnixSeconds * 1000),
+              )}
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={(event) => {
+          event.stopPropagation();
+          onInspect(file.parentDirectoryId);
+        }}
+      >
+        <FolderSearchIcon />
+        Inspect
+      </Button>
+    </div>
+  );
+});
+
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <SectionCard className="p-4">
