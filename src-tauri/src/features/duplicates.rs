@@ -96,12 +96,12 @@ fn analyze(
                 if cancel.load(Ordering::Relaxed) {
                     return None;
                 }
-                let hash = partial_hash(&item.path, item.size_bytes).ok()?;
+                let hash = partial_hash(&item.path, item.size_bytes);
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if n % 32 == 0 || n == total {
                     emit(&app, "partialHash", n, total)
                 }
-                Some((hash, item))
+                hash.ok().map(|hash| (hash, item))
             })
             .collect::<Vec<_>>()
     });
@@ -127,12 +127,12 @@ fn analyze(
                 if cancel.load(Ordering::Relaxed) {
                     return None;
                 }
-                let hash = full_hash(&item.path).ok()?;
+                let hash = full_hash(&item.path);
                 let n = done.fetch_add(1, Ordering::Relaxed) + 1;
                 if n % 16 == 0 || n == total {
                     emit(&app, "fullHash", n, total)
                 }
-                Some((hash, item))
+                hash.ok().map(|hash| (hash, item))
             })
             .collect::<Vec<_>>()
     });

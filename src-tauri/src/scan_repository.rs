@@ -340,13 +340,16 @@ impl ScanRepository {
             Ok(())
         })?;
         counts.retain(|_, count| *count > 1);
+        let metadata = self.metadata()?;
+        let root_id = metadata.summary.root_directory_id;
+        let mut path_cache = HashMap::from([(root_id, metadata.root_path)]);
         let mut candidates = Vec::new();
         self.for_each_node(|parent, node| {
             if cancellation.load(AtomicOrdering::Relaxed) {
                 return Err("Duplicate analysis cancelled.".into());
             }
             if node.kind == ScanNodeKind::File && counts.contains_key(&node.size_bytes) {
-                let path = self.path(parent, &node.name)?;
+                let path = self.cached_path(parent, &node.name, root_id, &mut path_cache)?;
                 candidates.push(DuplicateCandidate {
                     id: node.id,
                     parent_directory_id: parent,
@@ -359,6 +362,33 @@ impl ScanRepository {
             Ok(())
         })?;
         Ok(candidates)
+    }
+
+    fn cached_path(
+        &self,
+        parent: u64,
+        name: &str,
+        root_id: u64,
+        cache: &mut HashMap<u64, PathBuf>,
+    ) -> Result<String, String> {
+        let mut missing = Vec::new();
+        let mut current = parent;
+        while !cache.contains_key(&current) {
+            let directory = self.block(current)?;
+            let next = directory.parent_id.ok_or("Broken parent index.")?;
+            missing.push((current, directory.name));
+            current = next;
+            if missing.len() > 1_000_000 || current == root_id && !cache.contains_key(&root_id) {
+                return Err("Broken parent index.".into());
+            }
+        }
+        let mut path = cache.get(&current).cloned().ok_or("Broken parent index.")?;
+        for (id, part) in missing.into_iter().rev() {
+            path.push(part);
+            cache.insert(id, path.clone());
+        }
+        path.push(name);
+        Ok(path.to_string_lossy().into_owned())
     }
 
     pub fn search(&self, q: &str, requested: usize) -> Result<ScanSearchResponse, String> {

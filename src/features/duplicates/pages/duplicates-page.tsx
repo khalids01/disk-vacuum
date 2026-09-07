@@ -15,6 +15,13 @@ import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   analyzeDuplicates,
   cancelDuplicateAnalysis,
   type DuplicateFile,
@@ -54,11 +61,16 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
   const navigate = useNavigate();
   const [report, setReport] = useState(initial);
   const [progress, setProgress] = useState<DuplicateProgress | null>(null);
+  const [minimumSizeMiB, setMinimumSizeMiB] = useState(10);
   const [selected, setSelected] = useState<Map<number, DuplicateFile>>(
     new Map(),
   );
   const job = useMutation({
-    mutationFn: () => analyzeDuplicates(MIB),
+    mutationFn: () => analyzeDuplicates(minimumSizeMiB * MIB),
+    onMutate: () => {
+      setProgress({ stage: "sizing", processed: 0, total: 0 });
+      setSelected(new Map());
+    },
     onSuccess: (r) => {
       setReport(r);
       setProgress(null);
@@ -86,6 +98,18 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
   const percent = progress?.total
     ? Math.round((progress.processed / progress.total) * 100)
     : 0;
+  const progressLabel =
+    progress?.stage === "sizing"
+      ? "Finding files with matching sizes"
+      : progress?.stage === "fullHash"
+        ? "Confirming matches byte for byte"
+        : "Checking small samples from possible duplicates";
+  const progressHelp =
+    progress?.stage === "sizing"
+      ? "Reading the saved scan index. File contents are not opened yet."
+      : progress?.stage === "fullHash"
+        ? "Only files whose size and samples matched reach this final check."
+        : "Reading only the beginning and end of each candidate file.";
   return (
     <div className="space-y-4">
       <SectionCard className="p-4 sm:p-5">
@@ -93,10 +117,26 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
           <div>
             <p className="font-medium">Duplicate analysis</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Files smaller than 1 MiB are skipped to bound memory and I/O.
+              Smaller files find more duplicates but require more disk reads.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Select
+              value={minimumSizeMiB}
+              onValueChange={(value) =>
+                value !== null && setMinimumSizeMiB(value)
+              }
+              disabled={job.isPending}
+            >
+              <SelectTrigger aria-label="Minimum duplicate file size">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={1}>1 MiB · thorough</SelectItem>
+                <SelectItem value={10}>10 MiB · recommended</SelectItem>
+                <SelectItem value={100}>100 MiB · fastest</SelectItem>
+              </SelectContent>
+            </Select>
             {job.isPending ? (
               <Button
                 variant="outline"
@@ -123,20 +163,25 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
             <div className="flex justify-between text-xs">
               <span className="flex items-center gap-2">
                 <LoaderCircleIcon className="size-3.5 animate-spin" />
-                {progress?.stage === "fullHash"
-                  ? "Confirming full file contents"
-                  : "Grouping with partial hashes"}
+                {progressLabel}
               </span>
               <span>
-                {progress?.processed ?? 0} / {progress?.total ?? 0}
+                {progress?.total
+                  ? `${percent}% · ${progress.processed.toLocaleString()} / ${progress.total.toLocaleString()}`
+                  : "Preparing candidates…"}
               </span>
             </div>
             <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full bg-primary transition-[width]"
-                style={{ width: `${percent}%` }}
-              />
+              {progress?.total ? (
+                <div
+                  className="h-full bg-primary transition-[width]"
+                  style={{ width: `${percent}%` }}
+                />
+              ) : (
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+              )}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">{progressHelp}</p>
           </div>
         )}
       </SectionCard>
@@ -160,7 +205,7 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
         <DuplicatesEmptySection />
       ) : report.groups.length === 0 ? (
         <SectionCard className="p-8 text-center text-sm text-muted-foreground">
-          No byte-identical files found above 1 MiB.
+          No byte-identical files found above {minimumSizeMiB} MiB.
         </SectionCard>
       ) : (
         <div className="space-y-3">
