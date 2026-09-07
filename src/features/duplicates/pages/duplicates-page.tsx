@@ -8,7 +8,7 @@ import {
   PlayIcon,
   SquareIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/core/page-header";
 import { PathText } from "@/components/core/path-text";
 import { SectionCard } from "@/components/core/section-card";
@@ -34,6 +34,14 @@ import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
 const MIB = 1024 * 1024;
+const DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+});
+const MINIMUM_SIZE_OPTIONS = [
+  { value: 1, label: "1 MiB · Thorough" },
+  { value: 10, label: "10 MiB · Recommended" },
+  { value: 100, label: "100 MiB · Fastest" },
+] as const;
 export function DuplicatesPage() {
   const { data: scan } = useQuery(currentScanQuery);
   const previous = useQuery({
@@ -62,14 +70,14 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
   const [report, setReport] = useState(initial);
   const [progress, setProgress] = useState<DuplicateProgress | null>(null);
   const [minimumSizeMiB, setMinimumSizeMiB] = useState(10);
-  const [selected, setSelected] = useState<Map<number, DuplicateFile>>(
-    new Map(),
-  );
+  const selectedIds = useRef(new Set<number>());
+  const [selectedSize, setSelectedSize] = useState(0);
   const job = useMutation({
     mutationFn: () => analyzeDuplicates(minimumSizeMiB * MIB),
     onMutate: () => {
       setProgress({ stage: "sizing", processed: 0, total: 0 });
-      setSelected(new Map());
+      selectedIds.current.clear();
+      setSelectedSize(0);
     },
     onSuccess: (r) => {
       setReport(r);
@@ -85,16 +93,26 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
     return () => off?.();
   }, []);
   const smartSelect = () => {
-    const next = new Map<number, DuplicateFile>();
+    const next = new Set<number>();
+    let size = 0;
     for (const group of report?.groups ?? [])
       for (const file of group.files)
-        if (!file.recommendedKeep) next.set(file.id, file);
-    setSelected(next);
+        if (!file.recommendedKeep) {
+          next.add(file.id);
+          size += file.sizeBytes;
+        }
+    selectedIds.current = next;
+    setSelectedSize(size);
   };
-  const selectedSize = [...selected.values()].reduce(
-    (n, f) => n + f.sizeBytes,
-    0,
-  );
+  const toggleFile = useCallback((file: DuplicateFile) => {
+    if (file.recommendedKeep) return;
+    if (selectedIds.current.delete(file.id)) {
+      setSelectedSize((size) => size - file.sizeBytes);
+    } else {
+      selectedIds.current.add(file.id);
+      setSelectedSize((size) => size + file.sizeBytes);
+    }
+  }, []);
   const percent = progress?.total
     ? Math.round((progress.processed / progress.total) * 100)
     : 0;
@@ -128,13 +146,28 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
               }
               disabled={job.isPending}
             >
-              <SelectTrigger aria-label="Minimum duplicate file size">
-                <SelectValue />
+              <SelectTrigger
+                className="w-44 max-w-full"
+                aria-label="Minimum duplicate file size"
+              >
+                <SelectValue>
+                  {
+                    MINIMUM_SIZE_OPTIONS.find(
+                      (option) => option.value === minimumSizeMiB,
+                    )?.label
+                  }
+                </SelectValue>
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={1}>1 MiB · thorough</SelectItem>
-                <SelectItem value={10}>10 MiB · recommended</SelectItem>
-                <SelectItem value={100}>100 MiB · fastest</SelectItem>
+              <SelectContent
+                align="start"
+                alignItemWithTrigger={false}
+                className="w-max min-w-52 max-w-[calc(100vw-2rem)]"
+              >
+                {MINIMUM_SIZE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             {job.isPending ? (
@@ -225,26 +258,32 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
               </div>
               <div className="divide-y divide-border">
                 {group.files.map((file) => (
+                  /* biome-ignore lint/a11y/useSemanticElements: the selectable row contains its native checkbox and Inspect button. */
                   <div
                     key={file.id}
-                    className="grid gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                    className="grid cursor-pointer gap-3 p-4 hover:bg-muted/40 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center"
+                    role="checkbox"
+                    aria-checked={selectedIds.current.has(file.id)}
+                    aria-disabled={file.recommendedKeep}
+                    tabIndex={file.recommendedKeep ? -1 : 0}
+                    onClick={() => toggleFile(file)}
+                    onKeyDown={(event) => {
+                      if (event.key === " " || event.key === "Enter") {
+                        event.preventDefault();
+                        toggleFile(file);
+                      }
+                    }}
                   >
                     <Checkbox
-                      checked={selected.has(file.id)}
+                      checked={selectedIds.current.has(file.id)}
                       disabled={file.recommendedKeep}
                       aria-label={
                         file.recommendedKeep
                           ? `Recommended keep ${file.path}`
                           : `Select copy ${file.path}`
                       }
-                      onCheckedChange={() =>
-                        setSelected((c) => {
-                          const n = new Map(c);
-                          if (n.has(file.id)) n.delete(file.id);
-                          else n.set(file.id, file);
-                          return n;
-                        })
-                      }
+                      onClick={(event) => event.stopPropagation()}
+                      onCheckedChange={() => toggleFile(file)}
                     />
                     <div className="min-w-0">
                       <div className="flex gap-2">
@@ -261,9 +300,7 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
                         Modified{" "}
                         {file.modifiedAtUnixSeconds === null
                           ? "date unavailable"
-                          : new Intl.DateTimeFormat(undefined, {
-                              dateStyle: "medium",
-                            }).format(
+                          : DATE_FORMATTER.format(
                               new Date(file.modifiedAtUnixSeconds * 1000),
                             )}
                       </p>
@@ -271,12 +308,13 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={(event) => {
+                        event.stopPropagation();
                         void navigate({
                           to: "/explorer",
                           search: { directoryId: file.parentDirectoryId },
-                        })
-                      }
+                        });
+                      }}
                     >
                       <FolderSearchIcon />
                       Inspect
