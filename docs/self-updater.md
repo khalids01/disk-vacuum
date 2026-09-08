@@ -10,9 +10,9 @@ Generate a password-protected updater key on a trusted machine. Never add the pr
 bun tauri signer generate -w "$HOME/.tauri/disk-vacuum-updater.key"
 ```
 
-Copy the public key printed by the command into the GitHub repository variable `DISK_VACUUM_UPDATER_PUBLIC_KEY`. Add the private key file contents as the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`, and its password as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+The public key is committed in `src-tauri/tauri.conf.json` because it is safe and must be embedded in every installation. Add the private key file contents as the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`, and its password as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
-For a signed local build, copy `.env.example` to `.env` and fill in the public key, private-key path, and password. The `release:build` command loads the ignored `.env` explicitly before running Tauri.
+For a signed local build, copy `.env.example` to `.env` and fill in the `TAURI_SIGNING_PRIVATE_KEY` set to the private-key path and its password. The `release:build` command loads the ignored `.env` explicitly before running Tauri.
 
 Back up the private key and password securely. Losing them prevents existing installations from accepting future updates. Replacing the public key also breaks updates for already-installed copies.
 
@@ -32,6 +32,6 @@ GitHub Releases hosts both the installers and `latest.json`, so no separate upda
 4. The release workflow builds Linux AppImage and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`.
 5. Test from an installed older build. Development mode can check the channel but cannot safely simulate replacing an installed bundle.
 
-The first installed public build must already contain `DISK_VACUUM_UPDATER_PUBLIC_KEY`; otherwise that installation cannot verify or install later updates.
+The first installed public build must already contain the configured updater public key; otherwise that installation cannot verify or install later updates.
 
 macOS distribution signing/notarization is separate from Tauri updater signing and must be configured before a public macOS release.

@@ -9,12 +9,7 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let updater = match option_env!("DISK_VACUUM_UPDATER_PUBLIC_KEY") {
-        Some(public_key) if !public_key.trim().is_empty() => {
-            tauri_plugin_updater::Builder::new().pubkey(public_key)
-        }
-        _ => tauri_plugin_updater::Builder::new(),
-    };
+    let updater = tauri_plugin_updater::Builder::new();
     tauri::Builder::default()
         .plugin(updater.build())
         .plugin(tauri_plugin_process::init())
