@@ -1,4 +1,11 @@
-import { DownloadIcon, RefreshCwIcon } from "lucide-react";
+import {
+  BellRingIcon,
+  CheckCircle2Icon,
+  DownloadIcon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+  SparklesIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -7,164 +14,361 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { useUpdateStore } from "@/features/updates/stores/update-store";
+import {
+  type UpdateStatus,
+  useUpdateStore,
+} from "@/features/updates/stores/update-store";
 
-export function UpdateControl({ compact = false }: { compact?: boolean }) {
-  const state = useUpdateStore();
-  if (
-    compact &&
-    state.status !== "available" &&
-    state.status !== "downloading" &&
-    state.status !== "installed"
-  )
-    return null;
-  const percent =
-    state.totalBytes && state.totalBytes > 0
-      ? Math.min(
-          100,
-          Math.round((state.downloadedBytes / state.totalBytes) * 100),
-        )
-      : null;
+export function UpdateControl() {
+  const status = useUpdateStore((state) => state.status);
+  const checkForUpdate = useUpdateStore((state) => state.checkForUpdate);
   return (
-    <Dialog>
-      <DialogTrigger
-        render={
-          <Button
-            variant={state.status === "available" ? "default" : "outline"}
-            size={compact ? "sm" : "default"}
-          />
-        }
+    <Button
+      variant="outline"
+      disabled={status === "checking" || status === "downloading"}
+      onClick={() => void checkForUpdate({ manual: true, openDialog: true })}
+    >
+      <RefreshCwIcon
+        data-icon="inline-start"
+        className={status === "checking" ? "animate-spin" : ""}
+      />
+      {status === "checking" ? "Checking for updates…" : "Check for updates"}
+    </Button>
+  );
+}
+
+export function UpdateSidebarNotice() {
+  const state = useUpdateStore();
+  const isHiddenForVersion =
+    state.version === state.skippedVersion ||
+    state.version === state.deferredVersion;
+  const visible =
+    state.status === "downloading" ||
+    state.status === "installed" ||
+    state.status === "restartRequired" ||
+    (state.status === "available" && !isHiddenForVersion);
+
+  if (!visible) return null;
+
+  const percent = getPercent(state.downloadedBytes, state.totalBytes);
+  return (
+    <div className="shrink-0 border-t border-border p-3">
+      <button
+        type="button"
+        onClick={() => state.setDialogOpen(true)}
+        className="group w-full rounded-xl border border-primary/25 bg-primary/8 p-3 text-left transition-colors hover:border-primary/45 hover:bg-primary/12 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        {state.status === "available" ? (
-          <DownloadIcon data-icon="inline-start" />
-        ) : (
-          <RefreshCwIcon
-            data-icon="inline-start"
-            className={state.status === "checking" ? "animate-spin" : ""}
-          />
-        )}
-        {state.status === "available"
-          ? `Update ${state.version}`
-          : "Check for updates"}
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {state.status === "available"
-              ? `DiskVacuum ${state.version} is available`
-              : state.status === "downloading"
+        <div className="flex items-start gap-2.5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+            {state.status === "restartRequired" ? (
+              <RotateCcwIcon className="size-4" />
+            ) : (
+              <DownloadIcon className="size-4" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">
+              {state.status === "downloading"
                 ? "Installing update"
-                : "Application updates"}
-          </DialogTitle>
+                : state.status === "restartRequired"
+                  ? "Restart required"
+                  : "Update available"}
+            </span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              {state.status === "downloading"
+                ? percent === null
+                  ? `${formatBytes(state.downloadedBytes)} downloaded`
+                  : `${percent}% downloaded`
+                : state.version
+                  ? `DiskVacuum ${state.version}`
+                  : "View update details"}
+            </span>
+          </span>
+          <BellRingIcon className="mt-1 size-4 shrink-0 text-primary" />
+        </div>
+        {state.status === "downloading" && (
+          <ProgressBar percent={percent} className="mt-3" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+export function UpdateDialog() {
+  const state = useUpdateStore();
+  const percent = getPercent(state.downloadedBytes, state.totalBytes);
+
+  function handleOpenChange(open: boolean) {
+    if (open) {
+      state.setDialogOpen(true);
+      return;
+    }
+    if (state.status === "downloading") return;
+    if (state.status === "available") {
+      state.remindLater();
+      return;
+    }
+    state.setDialogOpen(false);
+  }
+
+  return (
+    <Dialog open={state.dialogOpen} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-lg"
+        showCloseButton={state.status !== "downloading"}
+      >
+        <DialogHeader>
+          <DialogTitle>{getTitle(state.status, state.version)}</DialogTitle>
           <DialogDescription>
-            Current version {state.currentVersion ?? "unknown"}
+            {state.currentVersion
+              ? `You are using DiskVacuum ${state.currentVersion}.`
+              : "Updates are downloaded from the signed DiskVacuum release channel."}
           </DialogDescription>
         </DialogHeader>
+
         <UpdateBody
           status={state.status}
+          version={state.version}
           notes={state.notes}
           error={state.error}
           percent={percent}
           downloaded={state.downloadedBytes}
           total={state.totalBytes}
         />
-        <DialogFooter>
-          {(state.status === "idle" ||
-            state.status === "upToDate" ||
-            state.status === "error") && (
-            <Button
-              variant="outline"
-              onClick={() => void state.checkForUpdate(true)}
-            >
-              Check again
-            </Button>
-          )}
-          {state.status === "available" && (
-            <Button onClick={() => void state.installAndRestart()}>
-              <DownloadIcon data-icon="inline-start" />
-              Update and restart
-            </Button>
-          )}
-          {state.status === "downloading" && (
-            <Button disabled>Installing…</Button>
-          )}
-        </DialogFooter>
+
+        <UpdateActions status={state.status} />
       </DialogContent>
     </Dialog>
   );
 }
+
+function UpdateActions({ status }: { status: UpdateStatus }) {
+  const state = useUpdateStore();
+
+  if (status === "available") {
+    return (
+      <DialogFooter className="sm:justify-between">
+        <Button variant="ghost" onClick={state.skipVersion}>
+          Skip this version
+        </Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
+          <Button variant="outline" onClick={state.remindLater}>
+            Remind me later
+          </Button>
+          <Button onClick={() => void state.installAndRestart()}>
+            <DownloadIcon data-icon="inline-start" />
+            Update
+          </Button>
+        </div>
+      </DialogFooter>
+    );
+  }
+
+  if (status === "downloading") {
+    return (
+      <DialogFooter>
+        <Button disabled>Installing update…</Button>
+      </DialogFooter>
+    );
+  }
+
+  if (status === "restartRequired" || status === "installed") {
+    return (
+      <DialogFooter>
+        <Button variant="outline" onClick={() => state.setDialogOpen(false)}>
+          Restart later
+        </Button>
+        <Button onClick={() => void state.restartApp()}>
+          <RotateCcwIcon data-icon="inline-start" />
+          Restart DiskVacuum
+        </Button>
+      </DialogFooter>
+    );
+  }
+
+  return (
+    <DialogFooter>
+      <Button
+        variant="outline"
+        disabled={status === "checking"}
+        onClick={() =>
+          void state.checkForUpdate({ manual: true, openDialog: true })
+        }
+      >
+        <RefreshCwIcon
+          data-icon="inline-start"
+          className={status === "checking" ? "animate-spin" : ""}
+        />
+        {status === "checking" ? "Checking…" : "Check again"}
+      </Button>
+    </DialogFooter>
+  );
+}
+
 function UpdateBody({
   status,
+  version,
   notes,
   error,
   percent,
   downloaded,
   total,
 }: {
-  status: string;
+  status: UpdateStatus;
+  version: string | null;
   notes: string | null;
   error: string | null;
   percent: number | null;
   downloaded: number;
   total: number | null;
 }) {
-  if (status === "checking")
+  if (status === "checking") {
+    return <StatusMessage message="Checking for a signed update…" spinning />;
+  }
+
+  if (status === "upToDate") {
     return (
-      <p className="text-sm text-muted-foreground">
-        Checking the signed release channel…
-      </p>
-    );
-  if (status === "upToDate")
-    return (
-      <p className="text-sm text-muted-foreground">
-        You already have the latest version.
-      </p>
-    );
-  if (status === "error")
-    return (
-      <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
-        {error ?? "The update check failed."}
-      </p>
-    );
-  if (status === "available")
-    return (
-      <div className="space-y-3">
-        <p className="text-sm">
-          The update will be downloaded, signature-verified, installed, and the
-          app will restart.
-        </p>
-        {notes && (
-          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-lg bg-muted/40 p-3 text-sm text-muted-foreground">
-            {notes}
+      <div className="flex gap-3 rounded-xl bg-emerald-500/10 p-4">
+        <CheckCircle2Icon className="size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+        <div>
+          <p className="font-medium">DiskVacuum is up to date</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You already have the newest available version.
           </p>
-        )}
+        </div>
       </div>
     );
-  if (status === "downloading" || status === "installed")
+  }
+
+  if (status === "error") {
     return (
-      <div>
-        <div className="h-2 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full bg-primary transition-[width]"
-            style={{ width: `${percent ?? 15}%` }}
-          />
+      <div className="rounded-xl bg-destructive/10 p-4 text-sm text-destructive">
+        <p className="font-medium">The update could not be completed.</p>
+        <p className="mt-1 break-words">{error ?? "Please try again."}</p>
+      </div>
+    );
+  }
+
+  if (status === "available") {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 rounded-xl bg-primary/8 p-4">
+          <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
+            <SparklesIcon className="size-4" />
+          </span>
+          <div>
+            <p className="font-semibold">Version {version} is ready</p>
+            <p className="text-sm text-muted-foreground">
+              Review the changes before installing.
+            </p>
+          </div>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">What is new</h3>
+          <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/35 p-4 text-sm leading-6 text-muted-foreground">
+            {notes ?? "No release notes were provided for this version."}
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          DiskVacuum verifies the signed download before installing it.
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "downloading" || status === "installed") {
+    return (
+      <div className="rounded-xl border border-border p-4">
+        <div className="mb-3 flex items-center justify-between gap-3 text-sm">
+          <span className="font-medium">Downloading and installing</span>
+          <span className="tabular-nums text-muted-foreground">
+            {percent === null ? "Working…" : `${percent}%`}
+          </span>
+        </div>
+        <ProgressBar percent={percent} />
+        <p className="mt-3 text-xs text-muted-foreground">
           {percent === null
             ? `${formatBytes(downloaded)} downloaded`
-            : `${percent}% · ${formatBytes(downloaded)} of ${formatBytes(total ?? 0)}`}
+            : `${formatBytes(downloaded)} of ${formatBytes(total ?? 0)}`}
         </p>
       </div>
     );
+  }
+
+  if (status === "restartRequired") {
+    return (
+      <div className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">
+        <p className="font-medium">The update was installed successfully.</p>
+        <p className="mt-1">
+          {error ?? "Close and reopen DiskVacuum to finish the update."}
+        </p>
+      </div>
+    );
+  }
+
+  if (status === "skipped") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        This version is skipped. A future version will still appear
+        automatically.
+      </p>
+    );
+  }
+
   return (
     <p className="text-sm text-muted-foreground">
-      DiskVacuum checks the signed GitHub release channel automatically after
-      launch.
+      DiskVacuum checks the signed release channel automatically after launch.
     </p>
   );
 }
+
+function StatusMessage({
+  message,
+  spinning = false,
+}: {
+  message: string;
+  spinning?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
+      <RefreshCwIcon className={spinning ? "size-4 animate-spin" : "size-4"} />
+      {message}
+    </div>
+  );
+}
+
+function ProgressBar({
+  percent,
+  className = "",
+}: {
+  percent: number | null;
+  className?: string;
+}) {
+  return (
+    <div className={`h-2 overflow-hidden rounded-full bg-muted ${className}`}>
+      <div
+        className={`h-full rounded-full bg-primary ${percent === null ? "w-1/3 animate-pulse" : "transition-[width]"}`}
+        style={percent === null ? undefined : { width: `${percent}%` }}
+      />
+    </div>
+  );
+}
+
+function getTitle(status: UpdateStatus, version: string | null) {
+  if (status === "available") return `DiskVacuum ${version} is available`;
+  if (status === "downloading") return "Installing your update";
+  if (status === "restartRequired" || status === "installed") {
+    return "Restart to finish updating";
+  }
+  return "Application updates";
+}
+
+function getPercent(downloaded: number, total: number | null) {
+  if (!total || total <= 0) return null;
+  return Math.min(100, Math.round((downloaded / total) * 100));
+}
+
 function formatBytes(value: number) {
   if (value < 1024 * 1024) return `${Math.round(value / 1024)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;

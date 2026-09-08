@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { SidebarContent } from "@/components/layout/sidebar-content";
 import { Button } from "@/components/ui/button";
+import { UpdateSidebarNotice } from "@/features/updates/components/update-control";
 
 export function MobileNavigation() {
   const [isOpen, setIsOpen] = useState(false);
@@ -74,6 +75,7 @@ export function MobileNavigation() {
                 </Button>
               </div>
               <SidebarContent onNavigate={() => setIsOpen(false)} />
+              <UpdateSidebarNotice />
             </aside>
           </div>,
           document.body,

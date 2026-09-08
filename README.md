@@ -143,7 +143,7 @@ git push
 git push origin v0.2.0
 ```
 
-A pushed `v*` tag starts the GitHub Actions release workflow. It builds Linux plus Intel and Apple Silicon macOS packages, signs updater artifacts, publishes the GitHub Release, and generates `latest.json` for the in-app updater.
+A pushed `v*` tag starts the GitHub Actions release workflow. It builds Linux plus Intel and Apple Silicon macOS packages, signs updater artifacts, publishes the GitHub Release, and generates `latest.json` for the in-app updater. GitHub-generated release notes are included in the update details shown inside DiskVacuum.
 
 The repository must contain these GitHub Actions secrets before the workflow can publish builds:
 

@@ -29,7 +29,7 @@ GitHub Releases hosts both the installers and `latest.json`, so no separate upda
    This keeps `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` aligned.
 2. Review and commit the version change.
 3. Push a matching tag, for example `v0.2.0`. CI rejects a tag that does not match the embedded application version.
-4. The release workflow builds Linux AppImage and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`.
+4. The release workflow builds Linux AppImage and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`. GitHub generates the release notes from the changes since the previous release, and those notes are shown in the in-app update dialog.
 5. Test from an installed older build. Development mode can check the channel but cannot safely simulate replacing an installed bundle.
 
 The first installed public build must already contain the configured updater public key; otherwise that installation cannot verify or install later updates.

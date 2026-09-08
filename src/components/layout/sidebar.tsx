@@ -1,4 +1,5 @@
 import { SidebarContent } from "@/components/layout/sidebar-content";
+import { UpdateSidebarNotice } from "@/features/updates/components/update-control";
 
 export function Sidebar() {
   return (
@@ -11,6 +12,7 @@ export function Sidebar() {
         </div>
       </div>
       <SidebarContent />
+      <UpdateSidebarNotice />
     </aside>
   );
 }
