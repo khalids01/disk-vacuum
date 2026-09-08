@@ -49,13 +49,20 @@ export function MobileNavigation() {
               className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-border bg-sidebar shadow-2xl"
             >
               <div className="flex h-16 shrink-0 items-center justify-between border-b border-border px-4">
-                <div>
-                  <p className="text-sm font-semibold tracking-tight">
-                    DiskVacuum
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Storage utility
-                  </p>
+                <div className="flex items-center gap-3">
+                  <img
+                    src="/app-icon.png"
+                    alt=""
+                    className="size-8 rounded-lg"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold tracking-tight">
+                      DiskVacuum
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Storage utility
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="ghost"
