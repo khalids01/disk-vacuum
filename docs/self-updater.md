@@ -16,10 +16,20 @@ Back up the private key and password securely. Losing them prevents existing ins
 
 ## Publish a release
 
-1. Make the same semantic version change in `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `package.json`.
-2. Commit the version change.
-3. Push a matching tag such as `v0.2.0`.
+GitHub Releases hosts both the installers and `latest.json`, so no separate update server is required.
+
+1. Prepare the next semantic version with one command:
+
+   ```bash
+   bun run release:prepare 0.2.0
+   ```
+
+   This keeps `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, and `src-tauri/Cargo.lock` aligned.
+2. Review and commit the version change.
+3. Push a matching tag, for example `v0.2.0`. CI rejects a tag that does not match the embedded application version.
 4. The release workflow builds Linux AppImage and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`.
 5. Test from an installed older build. Development mode can check the channel but cannot safely simulate replacing an installed bundle.
+
+The first installed public build must already contain `DISK_VACUUM_UPDATER_PUBLIC_KEY`; otherwise that installation cannot verify or install later updates.
 
 macOS distribution signing/notarization is separate from Tauri updater signing and must be configured before a public macOS release.

@@ -12,6 +12,8 @@
     "lint": "biome lint .",
     "check": "biome ci .",
     "preview": "vite preview",
+    "version:check": "bun scripts/version.ts --check",
+    "release:prepare": "bun scripts/version.ts",
     "tauri": "tauri"
   },
   "dependencies": {
