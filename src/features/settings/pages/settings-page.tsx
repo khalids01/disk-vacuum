@@ -20,6 +20,7 @@ import {
   saveSettings,
 } from "@/features/settings/api/settings-api";
 import { settingsQuery } from "@/features/settings/api/settings-queries";
+import { UpdateControl } from "@/features/updates/components/update-control";
 import { type Theme, useThemeStore } from "@/stores/theme-store";
 
 export function SettingsPage() {
@@ -185,6 +186,22 @@ export function SettingsPage() {
                 ))}
               </div>
             )}
+          </SettingsSection>
+
+          <SettingsSection
+            title="Updates and onboarding"
+            description="Check the signed release channel manually or replay the first-run guide."
+          >
+            <div className="flex flex-wrap gap-2">
+              <UpdateControl />
+              <Button
+                variant="outline"
+                disabled={mutation.isPending}
+                onClick={() => void update({ onboardingComplete: false })}
+              >
+                Show onboarding again
+              </Button>
+            </div>
           </SettingsSection>
 
           <SettingsSection

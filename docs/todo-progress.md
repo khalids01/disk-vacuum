@@ -379,7 +379,7 @@ Only create when needed.
 - [x] Remove exclusion
 - [x] Safety guarantees
 - [ ] Permission status
-- [ ] Update section
+- [x] Update section
 - [x] Privacy section
 - [ ] License section deferred/placeholder
 - [x] Mobile layout
@@ -406,14 +406,14 @@ Only create when needed.
 
 # Phase 18 — Onboarding / Permissions UI
 
-- [ ] Intro
-- [ ] Safety explanation
-- [ ] Platform-aware permission step
-- [ ] macOS Full Disk Access UI
-- [ ] Linux permission explanation
-- [ ] First scan choice
-- [ ] Skip/resume behavior
-- [ ] Persist onboarding completion
+- [x] Intro
+- [x] Safety explanation
+- [x] Platform-aware permission step
+- [x] macOS Full Disk Access UI
+- [x] Linux permission explanation
+- [x] First scan choice
+- [x] Skip/resume behavior
+- [x] Persist onboarding completion
 
 ---
 
@@ -619,7 +619,7 @@ Only create when needed.
 - [x] Exclusion remove
 - [x] Exclusions applied to scan
 - [x] Exclusions applied to cleanup
-- [ ] Onboarding state
+- [x] Onboarding state
 - [ ] macOS permission status
 - [ ] Linux permission/skipped path support
 - [x] Wire Settings
@@ -628,13 +628,13 @@ Only create when needed.
 
 # Backend Phase 13 — Updates
 
-- [ ] Updater plugin
-- [ ] Check command
-- [ ] Update available state
-- [ ] Download/install flow
-- [ ] Error handling
-- [ ] UI integration
-- [ ] Release manifest process documented
+- [x] Updater plugin
+- [x] Check command
+- [x] Update available state
+- [x] Download/install flow
+- [x] Error handling
+- [x] UI integration
+- [x] Release manifest process documented
 
 ---
 

@@ -28,4 +28,6 @@ rayon = "1.12.0"
 libc = "0.2.189"
 blake3 = "1.8.7"
 trash = "5.2.7"
+tauri-plugin-updater = "2.11.0"
+tauri-plugin-process = "2.3.1"
 

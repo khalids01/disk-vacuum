@@ -4,6 +4,7 @@ import { queryClient } from "@/app/query-client";
 import { OnboardingDialog } from "@/features/onboarding/components/onboarding-dialog";
 import { ScanProgressBridge } from "@/features/scan/components/scan-progress-bridge";
 import { GlobalSearch } from "@/features/search/components/global-search";
+import { UpdateManager } from "@/features/updates/components/update-manager";
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
@@ -11,6 +12,7 @@ export function AppProviders({ children }: PropsWithChildren) {
       <ScanProgressBridge />
       <GlobalSearch />
       <OnboardingDialog />
+      <UpdateManager />
       {children}
     </QueryClientProvider>
   );

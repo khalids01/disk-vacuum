@@ -2,6 +2,7 @@ import { RotateCwIcon, SearchIcon } from "lucide-react";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { UpdateControl } from "@/features/updates/components/update-control";
 import { useSearchStore } from "@/stores/search-store";
 
 export function TopCommandBar() {
@@ -46,6 +47,7 @@ export function TopCommandBar() {
       >
         <RotateCwIcon />
       </Button>
+      <UpdateControl compact />
       <ThemeToggle />
     </header>
   );
