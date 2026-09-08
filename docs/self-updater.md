@@ -12,6 +12,8 @@ bun tauri signer generate -w "$HOME/.tauri/disk-vacuum-updater.key"
 
 Copy the public key printed by the command into the GitHub repository variable `DISK_VACUUM_UPDATER_PUBLIC_KEY`. Add the private key file contents as the GitHub Actions secret `TAURI_SIGNING_PRIVATE_KEY`, and its password as `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 
+For a signed local build, copy `.env.example` to `.env` and fill in the public key, private-key path, and password. The `release:build` command loads the ignored `.env` explicitly before running Tauri.
+
 Back up the private key and password securely. Losing them prevents existing installations from accepting future updates. Replacing the public key also breaks updates for already-installed copies.
 
 ## Publish a release
