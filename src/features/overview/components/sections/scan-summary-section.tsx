@@ -2,6 +2,7 @@ import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
 import { ScanCategorySection } from "@/features/overview/components/sections/scan-category-section";
 import { ScanTreemapSection } from "@/features/overview/components/sections/scan-treemap-section";
+import { StorageCommandCenter } from "@/features/overview/components/sections/storage-command-center";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
@@ -20,95 +21,25 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     summary.skippedHardLinkCount +
     summary.skippedMountedFilesystemCount +
     summary.skippedSpecialFileCount;
-  const usedPercent =
-    summary.capacity && summary.capacity.totalSpaceBytes > 0
-      ? Math.min(
-          100,
-          (summary.capacity.usedSpaceBytes / summary.capacity.totalSpaceBytes) *
-            100,
-        )
-      : null;
-  const accountedBytes = summary.capacity
-    ? Math.min(summary.totalSizeBytes, summary.capacity.usedSpaceBytes)
-    : 0;
-  const unaccountedBytes = summary.capacity
-    ? summary.capacity.usedSpaceBytes - accountedBytes
-    : 0;
-  const accountedPercent =
-    summary.capacity && summary.capacity.usedSpaceBytes > 0
-      ? (accountedBytes / summary.capacity.usedSpaceBytes) * 100
-      : null;
 
   return (
     <div className="space-y-5">
       <ScanProgressPanel />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          label="Indexed size"
-          value={formatBytes(summary.totalSizeBytes)}
-        />
-        <Metric label="Files" value={summary.fileCount.toLocaleString()} />
+      <StorageCommandCenter summary={summary} />
+      <div className="grid gap-3 sm:grid-cols-3">
         <Metric
           label="Folders"
           value={summary.directoryCount.toLocaleString()}
         />
         <Metric
-          label="Top consumers"
+          label="Largest entries"
           value={String(summary.topLevelItems.length)}
         />
+        <Metric
+          label="Scan coverage notes"
+          value={skippedCount.toLocaleString()}
+        />
       </div>
-
-      {summary.capacity && usedPercent !== null && (
-        <SectionCard className="p-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold">System storage capacity</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {formatBytes(summary.capacity.usedSpaceBytes)} used of{" "}
-                {formatBytes(summary.capacity.totalSpaceBytes)}
-              </p>
-            </div>
-            <p className="font-mono text-sm font-medium">
-              {Math.round(usedPercent)}% used
-            </p>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary"
-              style={{ width: `${usedPercent}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {formatBytes(summary.capacity.freeSpaceBytes)} free
-          </p>
-          {summary.capacity.reservedSpaceBytes > 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatBytes(summary.capacity.availableSpaceBytes)} available to
-              this user · {formatBytes(summary.capacity.reservedSpaceBytes)}{" "}
-              reserved for the system
-            </p>
-          )}
-          {accountedPercent !== null && (
-            <div className="mt-4 border-t border-border pt-4">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span className="text-muted-foreground">
-                  Allocated file data indexed
-                </span>
-                <span className="font-mono font-medium">
-                  {formatBytes(accountedBytes)} · {Math.round(accountedPercent)}
-                  % of used space
-                </span>
-              </div>
-              {unaccountedBytes > 0 && (
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                  {formatBytes(unaccountedBytes)} remains filesystem-managed,
-                  reserved, mounted elsewhere, open-but-deleted, or unreadable.
-                </p>
-              )}
-            </div>
-          )}
-        </SectionCard>
-      )}
 
       <ScanTreemapSection summary={summary} />
 

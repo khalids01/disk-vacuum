@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderPlusIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
+import {
+  FolderPlusIcon,
+  MonitorCogIcon,
+  ShieldCheckIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/core/page-header";
 import { PathText } from "@/components/core/path-text";
@@ -24,6 +30,7 @@ import { UpdateControl } from "@/features/updates/components/update-control";
 import { type Theme, useThemeStore } from "@/stores/theme-store";
 
 export function SettingsPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(settingsQuery);
   const theme = useThemeStore((state) => state.theme);
@@ -202,6 +209,19 @@ export function SettingsPage() {
                 Show onboarding again
               </Button>
             </div>
+          </SettingsSection>
+
+          <SettingsSection
+            title="System and diagnostics"
+            description="See operating system, processor, memory, uptime, and mounted-volume details."
+          >
+            <Button
+              variant="outline"
+              onClick={() => void navigate({ to: "/system" })}
+            >
+              <MonitorCogIcon data-icon="inline-start" />
+              View system information
+            </Button>
           </SettingsSection>
 
           <SettingsSection

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  ArchiveRestoreIcon,
   ArrowRightIcon,
   BotIcon,
   BoxesIcon,
@@ -13,6 +14,7 @@ import { PageHeader } from "@/components/core/page-header";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { aiStorageQuery } from "@/features/ai-storage/api/ai-storage-queries";
+import { appLeftoversQuery } from "@/features/app-leftovers/api/app-leftovers-queries";
 import { CleanupEmptySection } from "@/features/cleanup/components/sections/cleanup-empty-section";
 import { developerCleanupQuery } from "@/features/developer-cleanup/api/developer-cleanup-queries";
 import { getDuplicateReport } from "@/features/duplicates/api/duplicates-api";
@@ -42,6 +44,7 @@ export function CleanupPage() {
     enabled,
   });
   const ai = useQuery({ ...aiStorageQuery(scanVersion), enabled });
+  const leftovers = useQuery({ ...appLeftoversQuery(scanVersion), enabled });
   const largeFiles = useQuery({
     ...largeFilesQuery(scanVersion, {
       minimumSizeBytes: largeFileMinimumBytes,
@@ -79,9 +82,14 @@ export function CleanupPage() {
     duplicates.isPending ||
     developer.isPending ||
     ai.isPending ||
+    leftovers.isPending ||
     largeFiles.isPending;
   const anyError =
-    duplicates.isError || developer.isError || ai.isError || largeFiles.isError;
+    duplicates.isError ||
+    developer.isError ||
+    ai.isError ||
+    leftovers.isError ||
+    largeFiles.isError;
 
   return (
     <div className="space-y-5">
@@ -139,6 +147,17 @@ export function CleanupPage() {
           sizeLabel="cache and log candidates"
           status="Consequence-aware"
           onOpen={() => void navigate({ to: "/ai-storage" })}
+        />
+        <CleanupSourceCard
+          icon={ArchiveRestoreIcon}
+          title="App leftovers"
+          description="Data associated with applications that may no longer be installed, grouped by confidence and evidence."
+          count={leftovers.data?.itemCount ?? 0}
+          countLabel="locations to review"
+          sizeBytes={leftovers.data?.totalSizeBytes ?? 0}
+          sizeLabel="detected storage"
+          status="Identity checked"
+          onOpen={() => void navigate({ to: "/app-leftovers" })}
         />
         <CleanupSourceCard
           icon={BoxesIcon}

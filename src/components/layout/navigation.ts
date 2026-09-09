@@ -1,14 +1,9 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BotIcon,
-  Code2Icon,
-  CopyIcon,
-  FilesIcon,
   FolderSearch2Icon,
-  HardDriveIcon,
+  LayoutDashboardIcon,
   SettingsIcon,
   SparklesIcon,
-  Trash2Icon,
 } from "lucide-react";
 
 export type AppRoute =
@@ -25,6 +20,7 @@ export type AppRoute =
 
 export interface NavigationItem {
   label: string;
+  description?: string;
   icon: LucideIcon;
   to: AppRoute;
 }
@@ -36,28 +32,37 @@ export interface NavigationGroup {
 
 export const navigationGroups: NavigationGroup[] = [
   {
-    label: "Explore",
+    label: "Workspace",
     items: [
-      { label: "Space Map", icon: HardDriveIcon, to: "/overview" },
-      { label: "Explorer", icon: FolderSearch2Icon, to: "/explorer" },
+      {
+        label: "Overview",
+        description: "Storage health and next steps",
+        icon: LayoutDashboardIcon,
+        to: "/overview",
+      },
+      {
+        label: "Explore Files",
+        description: "Browse scanned folders",
+        icon: FolderSearch2Icon,
+        to: "/explorer",
+      },
+      {
+        label: "Clean Up",
+        description: "Review reclaimable storage",
+        icon: SparklesIcon,
+        to: "/cleanup",
+      },
     ],
   },
   {
-    label: "Cleanup",
+    label: "Preferences",
     items: [
-      { label: "Cleanup Hub", icon: Trash2Icon, to: "/cleanup" },
-      { label: "Large Files", icon: FilesIcon, to: "/large-files" },
-      { label: "Duplicates", icon: CopyIcon, to: "/duplicates" },
-      { label: "Developer", icon: Code2Icon, to: "/developer-cleanup" },
-      { label: "AI Storage", icon: BotIcon, to: "/ai-storage" },
-      { label: "App Leftovers", icon: SparklesIcon, to: "/app-leftovers" },
-    ],
-  },
-  {
-    label: "Tools",
-    items: [
-      { label: "System", icon: HardDriveIcon, to: "/system" },
-      { label: "Settings", icon: SettingsIcon, to: "/settings" },
+      {
+        label: "Settings",
+        description: "Scanning, appearance, and safety",
+        icon: SettingsIcon,
+        to: "/settings",
+      },
     ],
   },
 ];

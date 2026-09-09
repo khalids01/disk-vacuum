@@ -16,7 +16,8 @@
 ## Current Status
 
 - Current phase: **Quality, onboarding, and release readiness**
-- Current task: **Cross-platform runtime review and remaining release work**
+- Current task: **UX improvement Phase 1 — command center and navigation**
+- UX plan: `docs/ux-improvement-plan.md`
 - macOS dev run: [!]
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
