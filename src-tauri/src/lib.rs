@@ -34,6 +34,7 @@ pub fn run() {
             features::cleanup::preview_cleanup_targets,
             features::cleanup::trash_duplicate_files,
             features::cleanup::trash_cleanup_targets,
+            features::cleanup::permanently_delete_cleanup_files,
             features::scan::service::cancel_scan,
             features::scan::service::get_current_scan,
             features::scan::service::get_ai_storage,

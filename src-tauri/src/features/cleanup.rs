@@ -338,6 +338,8 @@ pub struct CleanupTargetInput {
     pub parent_directory_id: u64,
     pub path: String,
     pub size_bytes: u64,
+    #[serde(default)]
+    pub require_regeneratable: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -400,6 +402,57 @@ pub async fn trash_cleanup_targets(
     })
 }
 
+#[tauri::command]
+pub async fn permanently_delete_cleanup_files(
+    targets: Vec<CleanupTargetInput>,
+    state: State<'_, AppState>,
+) -> Result<CleanupResult, String> {
+    let preview = validate_targets(targets, &state)?;
+    if !preview.rejected.is_empty() {
+        return Err("Some selected files failed safety validation.".into());
+    }
+    for target in &preview.ready {
+        let metadata = fs::symlink_metadata(&target.path)
+            .map_err(|error| format!("A selected file is unavailable: {error}"))?;
+        if !metadata.is_file() || metadata.file_type().is_symlink() {
+            return Err("Permanent deletion is limited to verified regular files. Move directories to Trash instead.".into());
+        }
+    }
+    let outcomes = tauri::async_runtime::spawn_blocking(move || {
+        preview
+            .ready
+            .into_iter()
+            .map(|target| {
+                let result = fs::remove_file(&target.path).map_err(|error| error.to_string());
+                (target, result)
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|_| "Permanent deletion stopped unexpectedly.".to_owned())?;
+    let mut moved_ids = Vec::new();
+    let mut failed = Vec::new();
+    let mut reclaimed_size_bytes = 0;
+    for (target, outcome) in outcomes {
+        match outcome {
+            Ok(()) => {
+                moved_ids.push(target.id);
+                reclaimed_size_bytes += target.size_bytes;
+            }
+            Err(reason) => failed.push(CleanupIssue {
+                id: target.id,
+                path: target.path,
+                reason,
+            }),
+        }
+    }
+    Ok(CleanupResult {
+        moved_ids,
+        failed,
+        reclaimed_size_bytes,
+    })
+}
+
 fn validate_targets(
     targets: Vec<CleanupTargetInput>,
     state: &AppState,
@@ -430,6 +483,16 @@ fn validate_targets(
                     .map_err(|error| format!("Path cannot be verified: {error}"))?;
                 if state.settings.is_excluded(&canonical)? {
                     return Err("This path is protected by your exclusions.".into());
+                }
+                if target.require_regeneratable
+                    && !matches!(
+                        cleanup_policy(&canonical),
+                        CleanupPolicy::AutoClean | CleanupPolicy::Regeneratable
+                    )
+                {
+                    return Err(
+                        "This location is not recognized as verified regeneratable data.".into(),
+                    );
                 }
                 validate_target_path(&root, &target.path, target.size_bytes)
             });

@@ -10,6 +10,7 @@ export type AppRoute =
   | "/overview"
   | "/explorer"
   | "/cleanup"
+  | "/cleanup-queue"
   | "/large-files"
   | "/duplicates"
   | "/developer-cleanup"

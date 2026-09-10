@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { AppLeftoverItem } from "@/features/app-leftovers/api/app-leftovers-api";
 import { appLeftoversQuery } from "@/features/app-leftovers/api/app-leftovers-queries";
 import { AppLeftoversEmptySection } from "@/features/app-leftovers/components/sections/app-leftovers-empty-section";
-import { CleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
+import { AddToCleanupQueueButton } from "@/features/cleanup/components/add-to-cleanup-queue-button";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
@@ -99,19 +99,11 @@ function LeftoversBrowser({ scanVersion }: { scanVersion: number }) {
             <Button variant="ghost" onClick={() => setSelected(new Map())}>
               Clear
             </Button>
-            <CleanupReviewDialog
+            <AddToCleanupQueueButton
               items={[...selected.values()]}
-              title="Review application leftovers"
-              onComplete={(result) =>
-                setSelected(
-                  (current) =>
-                    new Map(
-                      [...current].filter(
-                        ([id]) => !result.movedIds.includes(id),
-                      ),
-                    ),
-                )
-              }
+              source="appLeftovers"
+              scanVersion={scanVersion}
+              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>

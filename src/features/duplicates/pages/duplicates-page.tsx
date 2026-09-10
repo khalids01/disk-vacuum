@@ -5,6 +5,7 @@ import {
   AlertTriangleIcon,
   CheckIcon,
   FolderSearchIcon,
+  ListPlusIcon,
   LoaderCircleIcon,
   PlayIcon,
   SquareIcon,
@@ -55,6 +56,7 @@ import {
 import { DuplicatesEmptySection } from "@/features/duplicates/components/sections/duplicates-empty-section";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import { useCleanupQueueStore } from "@/stores/cleanup-queue-store";
 
 const MIB = 1024 * 1024;
 const DATE_FORMATTER = new Intl.DateTimeFormat(undefined, {
@@ -81,15 +83,25 @@ export function DuplicatesPage() {
         description="Confirm byte-identical files with staged hashing. Analysis runs only when requested and never removes files."
       />
       {scan ? (
-        <DuplicateBrowser initial={previous.data ?? null} />
+        <DuplicateBrowser
+          initial={previous.data ?? null}
+          scanVersion={scan.completedAtUnixSeconds}
+        />
       ) : (
         <DuplicatesEmptySection />
       )}
     </div>
   );
 }
-function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
+function DuplicateBrowser({
+  initial,
+  scanVersion,
+}: {
+  initial: DuplicateReport | null;
+  scanVersion: number;
+}) {
   const navigate = useNavigate();
+  const addToQueue = useCleanupQueueStore((state) => state.add);
   const [report, setReport] = useState(initial);
   const [progress, setProgress] = useState<DuplicateProgress | null>(null);
   const [minimumSizeMiB, setMinimumSizeMiB] = useState(10);
@@ -149,11 +161,10 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
     [navigate],
   );
   const selectedFiles = (report?.groups ?? []).flatMap((group) =>
-    group.files.filter((file) => selectedIds.current.has(file.id)),
+    group.files
+      .filter((file) => selectedIds.current.has(file.id))
+      .map((file) => ({ ...file, duplicateGroupId: group.id })),
   );
-  const selectedGroupCount = (report?.groups ?? []).filter((group) =>
-    group.files.some((file) => selectedIds.current.has(file.id)),
-  ).length;
   const percent = progress?.total
     ? Math.round((progress.processed / progress.total) * 100)
     : 0;
@@ -274,19 +285,25 @@ function DuplicateBrowser({ initial }: { initial: DuplicateReport | null }) {
             value={formatBytes(selectedSize)}
           />
           {selectedFiles.length > 0 && (
-            <DuplicateReviewDialog
-              files={selectedFiles}
-              groupCount={selectedGroupCount}
-              totalSize={selectedSize}
-              onComplete={async (result) => {
-                const updated = await getDuplicateReport();
-                setReport(updated);
+            <Button
+              className="sm:col-span-3"
+              onClick={() => {
+                addToQueue(
+                  selectedFiles.map((file) => ({
+                    ...file,
+                    source: "duplicates",
+                    nodeKind: "file",
+                  })),
+                  scanVersion,
+                );
                 selectedIds.current.clear();
                 setSelectedSize(0);
                 setSelectionVersion((version) => version + 1);
-                return result;
               }}
-            />
+            >
+              <ListPlusIcon data-icon="inline-start" />
+              Add selected copies to Cleanup Queue
+            </Button>
           )}
         </div>
       )}
@@ -416,7 +433,7 @@ const DuplicateFileRow = memo(function DuplicateFileRow({
   );
 });
 
-function DuplicateReviewDialog({
+export function DuplicateReviewDialog({
   files,
   groupCount,
   totalSize,

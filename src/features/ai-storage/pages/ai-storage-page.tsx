@@ -20,7 +20,7 @@ import type {
 } from "@/features/ai-storage/api/ai-storage-api";
 import { aiStorageQuery } from "@/features/ai-storage/api/ai-storage-queries";
 import { AiStorageEmptySection } from "@/features/ai-storage/components/sections/ai-storage-empty-section";
-import { CleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
+import { AddToCleanupQueueButton } from "@/features/cleanup/components/add-to-cleanup-queue-button";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 
@@ -126,19 +126,11 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
             <Button variant="ghost" onClick={() => setSelected(new Map())}>
               Clear
             </Button>
-            <CleanupReviewDialog
+            <AddToCleanupQueueButton
               items={[...selected.values()]}
-              title="Review AI storage cleanup"
-              onComplete={(result) =>
-                setSelected(
-                  (current) =>
-                    new Map(
-                      [...current].filter(
-                        ([id]) => !result.movedIds.includes(id),
-                      ),
-                    ),
-                )
-              }
+              source="aiStorage"
+              scanVersion={scanVersion}
+              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>

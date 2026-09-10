@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiStorageRouteImport } from './routes/ai-storage'
 import { Route as AppLeftoversRouteImport } from './routes/app-leftovers'
 import { Route as CleanupRouteImport } from './routes/cleanup'
+import { Route as CleanupQueueRouteImport } from './routes/cleanup-queue'
 import { Route as DeveloperCleanupRouteImport } from './routes/developer-cleanup'
 import { Route as DuplicatesRouteImport } from './routes/duplicates'
 import { Route as ExplorerRouteImport } from './routes/explorer'
@@ -39,6 +40,11 @@ const AppLeftoversRoute = AppLeftoversRouteImport.update({
 const CleanupRoute = CleanupRouteImport.update({
   id: '/cleanup',
   path: '/cleanup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CleanupQueueRoute = CleanupQueueRouteImport.update({
+  id: '/cleanup-queue',
+  path: '/cleanup-queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DeveloperCleanupRoute = DeveloperCleanupRouteImport.update({
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/ai-storage': typeof AiStorageRoute
   '/app-leftovers': typeof AppLeftoversRoute
   '/cleanup': typeof CleanupRoute
+  '/cleanup-queue': typeof CleanupQueueRoute
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
@@ -95,6 +102,7 @@ export interface FileRoutesByTo {
   '/ai-storage': typeof AiStorageRoute
   '/app-leftovers': typeof AppLeftoversRoute
   '/cleanup': typeof CleanupRoute
+  '/cleanup-queue': typeof CleanupQueueRoute
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
@@ -109,6 +117,7 @@ export interface FileRoutesById {
   '/ai-storage': typeof AiStorageRoute
   '/app-leftovers': typeof AppLeftoversRoute
   '/cleanup': typeof CleanupRoute
+  '/cleanup-queue': typeof CleanupQueueRoute
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
@@ -124,6 +133,7 @@ export interface FileRouteTypes {
     | '/ai-storage'
     | '/app-leftovers'
     | '/cleanup'
+    | '/cleanup-queue'
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
@@ -137,6 +147,7 @@ export interface FileRouteTypes {
     | '/ai-storage'
     | '/app-leftovers'
     | '/cleanup'
+    | '/cleanup-queue'
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/ai-storage'
     | '/app-leftovers'
     | '/cleanup'
+    | '/cleanup-queue'
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
@@ -164,6 +176,7 @@ export interface RootRouteChildren {
   AiStorageRoute: typeof AiStorageRoute
   AppLeftoversRoute: typeof AppLeftoversRoute
   CleanupRoute: typeof CleanupRoute
+  CleanupQueueRoute: typeof CleanupQueueRoute
   DeveloperCleanupRoute: typeof DeveloperCleanupRoute
   DuplicatesRoute: typeof DuplicatesRoute
   ExplorerRoute: typeof ExplorerRoute
@@ -201,6 +214,13 @@ declare module '@tanstack/react-router' {
       path: '/cleanup'
       fullPath: '/cleanup'
       preLoaderRoute: typeof CleanupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cleanup-queue': {
+      id: '/cleanup-queue'
+      path: '/cleanup-queue'
+      fullPath: '/cleanup-queue'
+      preLoaderRoute: typeof CleanupQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/developer-cleanup': {
@@ -260,6 +280,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiStorageRoute: AiStorageRoute,
   AppLeftoversRoute: AppLeftoversRoute,
   CleanupRoute: CleanupRoute,
+  CleanupQueueRoute: CleanupQueueRoute,
   DeveloperCleanupRoute: DeveloperCleanupRoute,
   DuplicatesRoute: DuplicatesRoute,
   ExplorerRoute: ExplorerRoute,

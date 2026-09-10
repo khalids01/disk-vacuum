@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CleanupReviewDialog as SafeCleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
+import { AddToCleanupQueueButton } from "@/features/cleanup/components/add-to-cleanup-queue-button";
 import type {
   DeveloperArtifactKind,
   DeveloperCleanupItem,
@@ -137,6 +137,14 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
     (sum, item) => sum + item.sizeBytes,
     0,
   );
+  const quickCleanItems = (query.data?.groups ?? [])
+    .flatMap((group) => group.items)
+    .filter(
+      (item) =>
+        item.safety === "likelySafe" &&
+        item.kind !== "packageCache" &&
+        item.kind !== "pythonVirtualEnvironment",
+    );
 
   function toggleItem(item: DeveloperCleanupItem) {
     if (item.safety === "protected") return;
@@ -250,10 +258,20 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
               />
             </Filter>
           </div>
-          <Button variant="outline" onClick={() => void query.refetch()}>
-            <RefreshCwIcon data-icon="inline-start" />
-            Re-analyze index
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {quickCleanItems.length > 0 && (
+              <AddToCleanupQueueButton
+                items={quickCleanItems}
+                source="developer"
+                scanVersion={scanVersion}
+                label={`Add ${quickCleanItems.length.toLocaleString()} safe items`}
+              />
+            )}
+            <Button variant="outline" onClick={() => void query.refetch()}>
+              <RefreshCwIcon data-icon="inline-start" />
+              Re-analyze index
+            </Button>
+          </div>
         </div>
         {query.data.displayedCount < query.data.totalCount && (
           <p className="mt-3 text-xs text-muted-foreground">
@@ -278,19 +296,11 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
             <Button variant="ghost" onClick={() => setSelected(new Map())}>
               Clear selection
             </Button>
-            <SafeCleanupReviewDialog
+            <AddToCleanupQueueButton
               items={[...selected.values()]}
-              title="Review developer cleanup"
-              onComplete={(result) =>
-                setSelected(
-                  (current) =>
-                    new Map(
-                      [...current].filter(
-                        ([id]) => !result.movedIds.includes(id),
-                      ),
-                    ),
-                )
-              }
+              source="developer"
+              scanVersion={scanVersion}
+              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>

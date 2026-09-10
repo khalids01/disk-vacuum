@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CleanupReviewDialog } from "@/features/cleanup/components/cleanup-review-dialog";
+import { AddToCleanupQueueButton } from "@/features/cleanup/components/add-to-cleanup-queue-button";
 import type {
   LargeFileItem,
   LargeFileSafety,
@@ -197,19 +197,11 @@ function LargeFilesBrowser({
             <Button variant="ghost" onClick={() => setSelected(new Map())}>
               Clear
             </Button>
-            <CleanupReviewDialog
+            <AddToCleanupQueueButton
               items={[...selected.values()]}
-              title="Review large files"
-              onComplete={(result) =>
-                setSelected(
-                  (current) =>
-                    new Map(
-                      [...current].filter(
-                        ([id]) => !result.movedIds.includes(id),
-                      ),
-                    ),
-                )
-              }
+              source="largeFiles"
+              scanVersion={scanVersion}
+              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>
