@@ -265,6 +265,7 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
                 source="developer"
                 scanVersion={scanVersion}
                 label={`Add ${quickCleanItems.length.toLocaleString()} safe items`}
+                requireRegeneratable
               />
             )}
             <Button variant="outline" onClick={() => void query.refetch()}>

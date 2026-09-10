@@ -10,12 +10,14 @@ export function AddToCleanupQueueButton({
   scanVersion,
   onAdded,
   label = "Add to Cleanup Queue",
+  requireRegeneratable = false,
 }: {
   items: CleanupTarget[];
   source: CleanupSource;
   scanVersion: number;
   onAdded?: () => void;
   label?: string;
+  requireRegeneratable?: boolean;
 }) {
   const add = useCleanupQueueStore((state) => state.add);
   return (
@@ -26,7 +28,7 @@ export function AddToCleanupQueueButton({
             ...item,
             source,
             nodeKind: source === "largeFiles" ? "file" : "directory",
-            requireRegeneratable: source === "developer",
+            requireRegeneratable,
           })),
           scanVersion,
         );
