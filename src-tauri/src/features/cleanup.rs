@@ -1,5 +1,6 @@
 use crate::{
     app_state::AppState,
+    features::safety::{cleanup_policy, protected_path, CleanupPolicy},
     features::scan::model::{DuplicateFile, DuplicateGroup, DuplicateReport, ScanCategory},
 };
 use serde::Serialize;
@@ -204,6 +205,9 @@ fn validate_file(root: &Path, file: &DuplicateFile, expected_hash: &str) -> Resu
     if protected_path(&canonical) {
         return Err("This operating-system location is protected.".into());
     }
+    if cleanup_policy(&canonical) == CleanupPolicy::Protected {
+        return Err("This location is protected by the cleanup policy.".into());
+    }
     Ok(())
 }
 
@@ -221,27 +225,6 @@ fn full_hash(path: &Path) -> Result<String, String> {
         hasher.update(&buffer[..read]);
     }
     Ok(hasher.finalize().to_hex().to_string())
-}
-
-fn protected_path(path: &Path) -> bool {
-    #[cfg(target_os = "linux")]
-    const PROTECTED: &[&str] = &[
-        "/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/proc", "/root", "/run", "/sbin",
-        "/sys", "/usr", "/var/lib", "/var/run",
-    ];
-    #[cfg(target_os = "macos")]
-    const PROTECTED: &[&str] = &[
-        "/System",
-        "/Library",
-        "/Applications",
-        "/bin",
-        "/sbin",
-        "/usr",
-        "/private",
-    ];
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    const PROTECTED: &[&str] = &[];
-    PROTECTED.iter().any(|prefix| path.starts_with(prefix))
 }
 
 fn issue(file: &DuplicateFile, reason: &str) -> CleanupIssue {

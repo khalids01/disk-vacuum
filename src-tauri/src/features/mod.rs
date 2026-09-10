@@ -3,6 +3,7 @@ pub mod app_leftovers;
 pub mod cleanup;
 pub mod developer_cleanup;
 pub mod duplicates;
+pub mod safety;
 pub mod scan;
 pub mod settings;
 pub mod system;
