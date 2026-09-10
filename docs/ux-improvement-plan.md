@@ -17,6 +17,8 @@ Make DiskVacuum feel like one calm, guided storage workflow: understand the disk
 
 ## Phase 1 — Command center and navigation
 
+Status: Complete.
+
 - Reduce primary navigation to Overview, Explore Files, Clean Up, and Settings.
 - Keep specialized analyzers discoverable through Clean Up rather than exposing ten equal destinations.
 - Turn Overview into a storage-health command center.
@@ -46,6 +48,8 @@ Acceptance:
 - Empty, filtered-empty, not-analyzed, running, failed, and complete states are distinct.
 
 ## Phase 3 — Unified cleanup queue
+
+Status: Implemented; runtime review remains.
 
 - Add one shared cleanup selection store.
 - Let supported analyzer pages add/remove candidates without blocking the checkbox UI.
@@ -78,6 +82,8 @@ Acceptance:
 
 ## Phase 5 — Quick Clean
 
+Status: Initial developer-artifact allowlist implemented; broader platform cache rules remain.
+
 - Start with deterministic regeneratable caches only.
 - Implement a platform-specific Rust allowlist with path ownership and application markers.
 - Exclude personal files, models, sessions, downloads, source trees, unknown caches, symlinks, mounts, and protected paths.
@@ -90,7 +96,7 @@ Acceptance:
 - Every Quick Clean rule has fixture tests and a documented consequence.
 - Tests prove near-match and adversarial paths are rejected.
 - Real cleanup is tested only on disposable data first.
-- Linux and macOS behavior are verified independently before enabling the feature by default.
+- Linux, macOS, and Windows behavior are verified independently before enabling the feature by default.
 - If certainty is below 100 percent, the item remains review-only.
 
 ## Phase 6 — Performance, accessibility, and release polish
@@ -99,7 +105,7 @@ Acceptance:
 - Reduce the initial JavaScript bundle and avoid eager analyzer queries.
 - Verify keyboard navigation, focus restoration, screen-reader labels, contrast, and reduced motion.
 - Test empty, huge, permission-limited, cancelled, stale, and corrupt-index states.
-- Run platform-specific release checks on Linux and macOS.
+- Run platform-specific release checks on Linux, macOS, and Windows.
 
 Acceptance:
 

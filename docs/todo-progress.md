@@ -589,23 +589,24 @@ Only create when needed.
 
 **Do not move user files before all items in this section are complete.**
 
-- [ ] Canonical path validation
-- [ ] Current-scan scope validation
-- [ ] Protected path deny list
-- [ ] macOS protected paths
-- [ ] Linux protected paths
-- [ ] Symlink safety
-- [ ] Changed/missing item handling
-- [ ] Cleanup preview command
-- [ ] Trash operation
-- [ ] Batch cleanup
-- [ ] Partial failure result
-- [ ] No permanent delete in normal flow
-- [ ] Protected-path tests
-- [ ] Scope traversal tests
+- [x] Canonical path validation
+- [x] Current-scan scope validation
+- [x] Protected path deny list
+- [x] macOS protected paths
+- [x] Linux protected paths
+- [x] Windows protected paths
+- [x] Symlink safety
+- [x] Changed/missing item handling
+- [x] Cleanup preview command
+- [x] Trash operation
+- [x] Batch cleanup
+- [x] Partial failure result
+- [x] Permanent deletion restricted to explicitly confirmed regular files
+- [x] Protected-path tests
+- [x] Scope traversal tests
 - [ ] Temporary-directory integration tests
-- [ ] Wire Cleanup Review
-- [ ] Wire post-clean result
+- [x] Wire Cleanup Review
+- [x] Wire post-clean result
 - [ ] Verify real cleanup only on disposable test data
 
 ---

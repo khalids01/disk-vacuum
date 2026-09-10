@@ -1,13 +1,22 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ListChecksIcon, XIcon } from "lucide-react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { useCleanupQueueStore } from "@/stores/cleanup-queue-store";
 
 export function CleanupQueueBar() {
   const navigate = useNavigate();
+  const { data: scan } = useQuery(currentScanQuery);
   const items = useCleanupQueueStore((state) => state.items);
+  const scanVersion = useCleanupQueueStore((state) => state.scanVersion);
   const clear = useCleanupQueueStore((state) => state.clear);
+  useEffect(() => {
+    if (scanVersion !== null && scan?.completedAtUnixSeconds !== scanVersion)
+      clear();
+  }, [clear, scan?.completedAtUnixSeconds, scanVersion]);
   if (!items.size) return null;
   const size = [...items.values()].reduce(
     (total, item) => total + item.sizeBytes,
