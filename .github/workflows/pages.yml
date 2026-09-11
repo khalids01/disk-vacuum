@@ -25,6 +25,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify static site artifact
+        run: |
+          test -f website/index.html
+          test -f website/CNAME
+          test "$(cat website/CNAME)" = "diskvacuum.skycanvasstudio.com"
+          if grep -q '/src/main.tsx' website/index.html; then
+            echo "Refusing to deploy the Vite development entry."
+            exit 1
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

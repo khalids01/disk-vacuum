@@ -13,6 +13,7 @@
     "check": "biome ci .",
     "preview": "vite preview",
     "website:dev": "vite website",
+    "website:verify": "node scripts/verify-website.ts",
     "version:check": "bun scripts/version.ts --check",
     "release:prepare": "bun scripts/version.ts",
     "release:publish": "bun scripts/publish-release.ts",
