@@ -10,6 +10,18 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      const isLocalApp =
+        location.protocol === "tauri:" ||
+        location.protocol === "file:" ||
+        location.hostname === "tauri.localhost" ||
+        location.hostname === "localhost" ||
+        location.hostname === "127.0.0.1";
+
+      if (!isLocalApp) {
+        location.replace(new URL("./website/", location.href));
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     paths:
+      - "index.html"
+      - "CNAME"
       - "website/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
