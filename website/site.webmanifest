@@ -3,6 +3,6 @@
   "short_name": "DiskVacuum",
   "icons": [{ "src": "assets/app-icon.png", "sizes": "1024x1024", "type": "image/png" }],
   "theme_color": "#071310",
-  "background_color": "#f4f7f2",
+  "background_color": "#050c0a",
   "display": "standalone"
 }
