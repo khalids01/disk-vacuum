@@ -1,16 +1,27 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 
 const host = process.env.TAURI_DEV_HOST;
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const desktopHtml = (): Plugin => ({
+  name: "disk-vacuum-desktop-html",
+  enforce: "pre",
+  transformIndexHtml: {
+    order: "pre",
+    handler: () => readFileSync(path.resolve(dirname, "app.html"), "utf8"),
+  },
+});
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [
+    desktopHtml(),
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
