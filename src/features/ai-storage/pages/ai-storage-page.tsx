@@ -130,12 +130,11 @@ function AiStorageBrowser({ scanVersion }: { scanVersion: number }) {
               items={[...selected.values()]}
               source="aiStorage"
               scanVersion={scanVersion}
-              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>
       )}
-      <SectionCard className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
+      <SectionCard className="sticky top-0 z-20 grid gap-3 border-primary/20 bg-card/95 p-4 shadow-md backdrop-blur sm:grid-cols-2 sm:p-5">
         <Filter
           label="Tool"
           value={tool}

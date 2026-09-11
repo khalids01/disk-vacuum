@@ -124,8 +124,7 @@ export function CleanupReviewDialog({
               )}
               {rejected.length > 0 && (
                 <Notice>
-                  {rejected.length.toLocaleString()} locations failed
-                  validation. Remove them from the selection before continuing.
+                  {rejected.length.toLocaleString()} locations failed validation and will be skipped. Valid locations can still be moved.
                 </Notice>
               )}
               <div className="mt-5 space-y-2">
@@ -164,7 +163,6 @@ export function CleanupReviewDialog({
               variant="destructive"
               disabled={
                 !preview.data ||
-                rejected.length > 0 ||
                 ready.length === 0 ||
                 cleanup.isPending
               }

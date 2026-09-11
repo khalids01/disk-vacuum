@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { navigationGroups } from "@/components/layout/navigation";
 import { currentScanQuery } from "@/features/scan/api/scan-queries";
 import { ScanFolderButton } from "@/features/scan/components/scan-folder-button";
@@ -15,6 +15,8 @@ interface SidebarContentProps {
 }
 
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const cleanupRoutes = new Set(["/cleanup", "/cleanup-queue", "/large-files", "/duplicates", "/developer-cleanup", "/ai-storage", "/app-leftovers"]);
   const { data: currentScan } = useQuery(currentScanQuery);
   const { data: settings } = useQuery(settingsQuery);
   const scanStatus = useScanStore((state) => state.status);
@@ -51,18 +53,20 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
             {group.label}
           </p>
           <div className="space-y-0.5">
-            {group.items.map((item) => (
+            {group.items.map((item) => {
+              const active = item.to === "/cleanup" ? cleanupRoutes.has(pathname) : pathname === item.to;
+              return (
               <Link
                 key={item.to}
                 to={item.to}
                 onClick={onNavigate}
-                activeProps={{ className: "bg-accent text-accent-foreground" }}
-                className="flex min-h-10 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                className={"flex min-h-10 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground " + (active ? "bg-accent text-accent-foreground" : "text-muted-foreground")}
               >
                 <item.icon className="size-4" />
                 <span>{item.label}</span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

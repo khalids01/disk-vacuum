@@ -8,14 +8,12 @@ export function AddToCleanupQueueButton({
   items,
   source,
   scanVersion,
-  onAdded,
   label = "Add to Cleanup Queue",
   requireRegeneratable = false,
 }: {
   items: CleanupTarget[];
   source: CleanupSource;
   scanVersion: number;
-  onAdded?: () => void;
   label?: string;
   requireRegeneratable?: boolean;
 }) {
@@ -29,10 +27,10 @@ export function AddToCleanupQueueButton({
             source,
             nodeKind: source === "largeFiles" ? "file" : "directory",
             requireRegeneratable,
+            cleanupType: "kind" in item && typeof item.kind === "string" ? item.kind : "dataType" in item && typeof item.dataType === "string" ? item.dataType : source,
           })),
           scanVersion,
         );
-        onAdded?.();
       }}
     >
       <ListPlusIcon data-icon="inline-start" />

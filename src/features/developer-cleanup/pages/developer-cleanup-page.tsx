@@ -225,7 +225,7 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
         />
       </div>
 
-      <SectionCard className="p-4 sm:p-5">
+      <SectionCard className="sticky top-0 z-20 border-primary/20 bg-card/95 p-4 shadow-md backdrop-blur sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="grid flex-1 gap-3 sm:grid-cols-2">
             <Filter label="Artifact type">
@@ -301,7 +301,6 @@ function DeveloperCleanupBrowser({ scanVersion }: { scanVersion: number }) {
               items={[...selected.values()]}
               source="developer"
               scanVersion={scanVersion}
-              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>

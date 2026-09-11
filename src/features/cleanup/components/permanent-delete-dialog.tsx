@@ -76,8 +76,7 @@ export function PermanentDeleteDialog({
           </div>
           {rejected.length > 0 && (
             <p className="text-sm text-destructive">
-              {rejected.length.toLocaleString()} items failed validation. Remove
-              them from the Queue first.
+              {rejected.length.toLocaleString()} items failed validation and will be skipped. Valid items can still be deleted.
             </p>
           )}
           {(preview.error || cleanup.error) && (
@@ -106,7 +105,6 @@ export function PermanentDeleteDialog({
             variant="destructive"
             disabled={
               !preview.data ||
-              rejected.length > 0 ||
               !ready.length ||
               confirmation !== "DELETE" ||
               cleanup.isPending

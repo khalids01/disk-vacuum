@@ -103,7 +103,6 @@ function LeftoversBrowser({ scanVersion }: { scanVersion: number }) {
               items={[...selected.values()]}
               source="appLeftovers"
               scanVersion={scanVersion}
-              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>

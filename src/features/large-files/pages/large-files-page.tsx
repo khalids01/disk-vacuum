@@ -201,14 +201,13 @@ function LargeFilesBrowser({
               items={[...selected.values()]}
               source="largeFiles"
               scanVersion={scanVersion}
-              onAdded={() => setSelected(new Map())}
             />
           </div>
         </SectionCard>
       )}
 
-      <SectionCard className="overflow-hidden">
-        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5 xl:grid-cols-6">
+      <SectionCard className="overflow-visible">
+        <div className="sticky top-0 z-20 grid gap-3 rounded-t-xl border-b border-border p-4 sm:grid-cols-2 lg:grid-cols-3 lg:p-5 xl:grid-cols-6">
           <Filter label="Minimum size">
             <FilterSelect
               value={String(thresholdMb)}

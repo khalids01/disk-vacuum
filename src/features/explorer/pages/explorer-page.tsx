@@ -122,7 +122,6 @@ function ScanExplorer({
         })),
         summary.completedAtUnixSeconds,
       );
-      setSelected(new Map());
     },
   });
 

@@ -9,14 +9,14 @@ import { useCleanupQueueStore } from "@/stores/cleanup-queue-store";
 
 export function CleanupQueueBar() {
   const navigate = useNavigate();
-  const { data: scan } = useQuery(currentScanQuery);
+  const scanQuery = useQuery(currentScanQuery);
+  const scan = scanQuery.data;
   const items = useCleanupQueueStore((state) => state.items);
   const scanVersion = useCleanupQueueStore((state) => state.scanVersion);
   const clear = useCleanupQueueStore((state) => state.clear);
   useEffect(() => {
-    if (scanVersion !== null && scan?.completedAtUnixSeconds !== scanVersion)
-      clear();
-  }, [clear, scan?.completedAtUnixSeconds, scanVersion]);
+    if (!scanQuery.isPending && scan && scanVersion !== null && scan.completedAtUnixSeconds !== scanVersion) clear();
+  }, [clear, scan, scanQuery.isPending, scanVersion]);
   if (!items.size) return null;
   const size = [...items.values()].reduce(
     (total, item) => total + item.sizeBytes,

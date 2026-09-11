@@ -367,9 +367,7 @@ pub async fn trash_cleanup_targets(
     state: State<'_, AppState>,
 ) -> Result<CleanupResult, String> {
     let preview = validate_targets(targets, &state)?;
-    if !preview.rejected.is_empty() {
-        return Err("Some selected locations failed safety validation.".into());
-    }
+    let mut rejected = preview.rejected;
     let outcomes = tauri::async_runtime::spawn_blocking(move || {
         preview
             .ready
@@ -384,6 +382,7 @@ pub async fn trash_cleanup_targets(
     .map_err(|_| "The Trash operation stopped unexpectedly.".to_owned())?;
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
+    failed.append(&mut rejected);
     let mut processed_size_bytes = 0;
     for (target, outcome) in outcomes {
         match outcome {
@@ -413,9 +412,7 @@ pub async fn permanently_delete_cleanup_files(
 ) -> Result<CleanupResult, String> {
     let available_before = available_space_for_root(&state);
     let preview = validate_targets(targets, &state)?;
-    if !preview.rejected.is_empty() {
-        return Err("Some selected files failed safety validation.".into());
-    }
+    let mut rejected = preview.rejected;
     for target in &preview.ready {
         let metadata = fs::symlink_metadata(&target.path)
             .map_err(|error| format!("A selected file is unavailable: {error}"))?;
@@ -441,6 +438,7 @@ pub async fn permanently_delete_cleanup_files(
     .map_err(|_| "Permanent deletion stopped unexpectedly.".to_owned())?;
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
+    failed.append(&mut rejected);
     let mut processed_size_bytes = 0;
     for (target, outcome) in outcomes {
         match outcome {

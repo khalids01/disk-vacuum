@@ -13,7 +13,7 @@ pub struct LeftoverDetection {
 }
 
 pub fn installed_app_tokens() -> HashSet<String> {
-    let mut roots = Vec::new();
+    let mut roots: Vec<PathBuf> = Vec::new();
     #[cfg(target_os = "linux")]
     {
         roots.extend([
@@ -32,6 +32,17 @@ pub fn installed_app_tokens() -> HashSet<String> {
         ]);
         if let Some(home) = env::var_os("HOME") {
             roots.push(PathBuf::from(home).join("Applications"));
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        for variable in ["ProgramFiles", "ProgramFiles(x86)"] {
+            if let Some(path) = env::var_os(variable) {
+                roots.push(PathBuf::from(path));
+            }
+        }
+        if let Some(local_app_data) = env::var_os("LOCALAPPDATA") {
+            roots.push(PathBuf::from(local_app_data).join("Programs"));
         }
     }
     let mut tokens = HashSet::new();

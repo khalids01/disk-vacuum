@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type { CleanupTarget } from "@/features/cleanup/api/cleanup-api";
 
 export type CleanupSource =
@@ -12,6 +13,7 @@ export interface CleanupQueueItem extends CleanupTarget {
   source: CleanupSource;
   nodeKind: "file" | "directory";
   duplicateGroupId?: string;
+  cleanupType?: string;
 }
 
 interface CleanupQueueState {
@@ -28,7 +30,9 @@ const normalized = (path: string) =>
 const contains = (parent: string, child: string) =>
   child === parent || child.startsWith(`${parent}/`);
 
-export const useCleanupQueueStore = create<CleanupQueueState>((set) => ({
+export const useCleanupQueueStore = create<CleanupQueueState>()(
+  persist(
+    (set) => ({
   scanVersion: null,
   items: new Map(),
   add: (incoming, scanVersion) =>
@@ -62,5 +66,36 @@ export const useCleanupQueueStore = create<CleanupQueueState>((set) => ({
         ),
       };
     }),
-  clear: () => set({ items: new Map(), scanVersion: null }),
-}));
+      clear: () => set({ items: new Map(), scanVersion: null }),
+    }),
+    {
+      name: "disk-vacuum-cleanup-queue",
+      version: 1,
+      storage: createJSONStorage(() => localStorage, {
+        replacer: (_key, value) =>
+          value instanceof Map
+            ? { __diskVacuumMap: true, entries: [...value.entries()] }
+            : value,
+        reviver: (_key, value) => {
+          if (
+            value &&
+            typeof value === "object" &&
+            "__diskVacuumMap" in value &&
+            "entries" in value &&
+            Array.isArray(value.entries)
+          ) {
+            return new Map(value.entries as [string, CleanupQueueItem][]);
+          }
+          return value;
+        },
+      }),
+      partialize: (state) => ({
+        ...state,
+        add: state.add,
+        remove: state.remove,
+        removeIds: state.removeIds,
+        clear: state.clear,
+      }),
+    },
+  ),
+);
