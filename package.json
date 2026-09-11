@@ -1,7 +1,7 @@
 {
   "name": "disk-vacuum",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "version:check": "bun scripts/version.ts --check",
     "release:prepare": "bun scripts/version.ts",
+    "release:publish": "bun scripts/publish-release.ts",
     "release:build": "bun --env-file=.env tauri build",
     "tauri": "tauri"
   },
