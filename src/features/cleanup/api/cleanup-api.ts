@@ -21,6 +21,7 @@ export interface CleanupTargetPreview {
 export interface CleanupResult {
   movedIds: number[];
   failed: CleanupIssue[];
+  processedSizeBytes: number;
   reclaimedSizeBytes: number;
 }
 const payload = (targets: CleanupTarget[]) =>

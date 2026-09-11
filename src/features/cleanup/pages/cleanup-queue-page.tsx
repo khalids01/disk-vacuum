@@ -25,9 +25,7 @@ export function CleanupQueuePage() {
   const clear = useCleanupQueueStore((state) => state.clear);
   const items = [...queued.values()];
   const regularItems = items.filter((item) => item.source !== "duplicates");
-  const permanentItems = regularItems.filter(
-    (item) => item.nodeKind === "file",
-  );
+  const permanentItems = regularItems;
   const duplicateItems = items.filter(
     (item) => item.source === "duplicates",
   ) as unknown as DuplicateFile[];
@@ -62,14 +60,14 @@ export function CleanupQueuePage() {
                 queue.
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button variant="ghost" onClick={clear}>
                 Clear queue
               </Button>
               {regularItems.length > 0 && (
                 <CleanupReviewDialog
                   items={regularItems}
-                  title="Review Cleanup Queue"
+                  title="Move all selected items to Trash?"
                   onComplete={(result) => removeIds(result.movedIds)}
                 />
               )}

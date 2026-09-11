@@ -38,6 +38,7 @@ export interface CleanupPreview {
 export interface CleanupResult {
   movedIds: number[];
   failed: CleanupIssue[];
+  processedSizeBytes: number;
   reclaimedSizeBytes: number;
 }
 export const previewDuplicateCleanup = (fileIds: number[]) =>

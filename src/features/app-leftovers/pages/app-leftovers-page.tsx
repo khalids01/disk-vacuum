@@ -149,13 +149,18 @@ function LeftoversBrowser({ scanVersion }: { scanVersion: number }) {
                 {group.items.map((item) => (
                   <div
                     key={item.id}
-                    className="grid gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+                    role="checkbox" aria-checked={selected.has(item.id)} tabIndex={0}
+                    className="grid cursor-pointer gap-3 p-4 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+                    onClick={() => toggle(item)}
+                    onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); toggle(item); } }}
                   >
+                    <span onClick={(event) => event.stopPropagation()}>
                     <Checkbox
                       checked={selected.has(item.id)}
                       aria-label={`Select ${item.path} for review`}
                       onCheckedChange={() => toggle(item)}
                     />
+                    </span>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <Confidence value={item.confidence} />
@@ -171,12 +176,13 @@ function LeftoversBrowser({ scanVersion }: { scanVersion: number }) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
+                      onClick={(event) => {
+                        event.stopPropagation();
                         void navigate({
                           to: "/explorer",
                           search: { directoryId: item.id },
-                        })
-                      }
+                        });
+                      }}
                     >
                       <FolderSearchIcon data-icon="inline-start" />
                       Inspect

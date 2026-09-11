@@ -5,6 +5,7 @@ use crate::{
 };
 use serde::Serialize;
 use std::{collections::HashSet, fs, fs::File, io::Read, path::Path};
+use sysinfo::Disks;
 use tauri::State;
 
 #[derive(Clone, Debug, Serialize)]
@@ -28,6 +29,7 @@ pub struct CleanupPreview {
 pub struct CleanupResult {
     pub moved_ids: Vec<u64>,
     pub failed: Vec<CleanupIssue>,
+    pub processed_size_bytes: u64,
     pub reclaimed_size_bytes: u64,
 }
 
@@ -65,12 +67,12 @@ pub async fn trash_duplicate_files(
 
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
-    let mut reclaimed_size_bytes = 0;
+    let mut processed_size_bytes = 0;
     for (file, outcome) in outcomes {
         match outcome {
             Ok(()) => {
                 moved_ids.push(file.id);
-                reclaimed_size_bytes += file.size_bytes;
+                processed_size_bytes += file.size_bytes;
             }
             Err(reason) => failed.push(CleanupIssue {
                 id: file.id,
@@ -83,7 +85,8 @@ pub async fn trash_duplicate_files(
     Ok(CleanupResult {
         moved_ids,
         failed,
-        reclaimed_size_bytes,
+        processed_size_bytes,
+        reclaimed_size_bytes: 0,
     })
 }
 
@@ -381,12 +384,12 @@ pub async fn trash_cleanup_targets(
     .map_err(|_| "The Trash operation stopped unexpectedly.".to_owned())?;
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
-    let mut reclaimed_size_bytes = 0;
+    let mut processed_size_bytes = 0;
     for (target, outcome) in outcomes {
         match outcome {
             Ok(()) => {
                 moved_ids.push(target.id);
-                reclaimed_size_bytes += target.size_bytes;
+                processed_size_bytes += target.size_bytes;
             }
             Err(reason) => failed.push(CleanupIssue {
                 id: target.id,
@@ -398,7 +401,8 @@ pub async fn trash_cleanup_targets(
     Ok(CleanupResult {
         moved_ids,
         failed,
-        reclaimed_size_bytes,
+        processed_size_bytes,
+        reclaimed_size_bytes: 0,
     })
 }
 
@@ -407,6 +411,7 @@ pub async fn permanently_delete_cleanup_files(
     targets: Vec<CleanupTargetInput>,
     state: State<'_, AppState>,
 ) -> Result<CleanupResult, String> {
+    let available_before = available_space_for_root(&state);
     let preview = validate_targets(targets, &state)?;
     if !preview.rejected.is_empty() {
         return Err("Some selected files failed safety validation.".into());
@@ -414,8 +419,8 @@ pub async fn permanently_delete_cleanup_files(
     for target in &preview.ready {
         let metadata = fs::symlink_metadata(&target.path)
             .map_err(|error| format!("A selected file is unavailable: {error}"))?;
-        if !metadata.is_file() || metadata.file_type().is_symlink() {
-            return Err("Permanent deletion is limited to verified regular files. Move directories to Trash instead.".into());
+        if (!metadata.is_file() && !metadata.is_dir()) || metadata.file_type().is_symlink() {
+            return Err("Permanent deletion is limited to verified regular files and directories.".into());
         }
     }
     let outcomes = tauri::async_runtime::spawn_blocking(move || {
@@ -423,7 +428,11 @@ pub async fn permanently_delete_cleanup_files(
             .ready
             .into_iter()
             .map(|target| {
-                let result = fs::remove_file(&target.path).map_err(|error| error.to_string());
+                let result = if Path::new(&target.path).is_dir() {
+                    fs::remove_dir_all(&target.path)
+                } else {
+                    fs::remove_file(&target.path)
+                }.map_err(|error| error.to_string());
                 (target, result)
             })
             .collect::<Vec<_>>()
@@ -432,12 +441,12 @@ pub async fn permanently_delete_cleanup_files(
     .map_err(|_| "Permanent deletion stopped unexpectedly.".to_owned())?;
     let mut moved_ids = Vec::new();
     let mut failed = Vec::new();
-    let mut reclaimed_size_bytes = 0;
+    let mut processed_size_bytes = 0;
     for (target, outcome) in outcomes {
         match outcome {
             Ok(()) => {
                 moved_ids.push(target.id);
-                reclaimed_size_bytes += target.size_bytes;
+                processed_size_bytes += target.size_bytes;
             }
             Err(reason) => failed.push(CleanupIssue {
                 id: target.id,
@@ -449,8 +458,20 @@ pub async fn permanently_delete_cleanup_files(
     Ok(CleanupResult {
         moved_ids,
         failed,
-        reclaimed_size_bytes,
+        processed_size_bytes,
+        reclaimed_size_bytes: available_before.zip(available_space_for_root(&state))
+            .map(|(before, after)| after.saturating_sub(before))
+            .unwrap_or(processed_size_bytes),
     })
+}
+
+fn available_space_for_root(state: &AppState) -> Option<u64> {
+    let root = state.scan_repository.scan_root_path().ok()?;
+    let disks = Disks::new_with_refreshed_list();
+    disks.list().iter()
+        .filter(|disk| root.starts_with(disk.mount_point()))
+        .max_by_key(|disk| disk.mount_point().components().count())
+        .map(|disk| disk.available_space())
 }
 
 fn validate_targets(

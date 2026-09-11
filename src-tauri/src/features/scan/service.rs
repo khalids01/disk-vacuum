@@ -348,11 +348,21 @@ pub fn cancel_scan(state: State<'_, AppState>) -> Result<bool, ScanCommandError>
 
 #[tauri::command]
 pub fn get_current_scan(state: State<'_, AppState>) -> Result<Option<ScanSummary>, String> {
-    state
-        .current_scan
-        .lock()
+    let mut summary = state.current_scan.lock()
         .map(|scan| scan.clone())
-        .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())
+        .map_err(|_| "DiskVacuum could not read its scan state.".to_owned())?;
+    if let Some(scan) = summary.as_mut() {
+        if let Ok(root) = state.scan_repository.scan_root_path() {
+            let disks = Disks::new_with_refreshed_list();
+            if let Some(disk) = disks.list().iter()
+                .filter(|disk| root.starts_with(disk.mount_point()))
+                .max_by_key(|disk| disk.mount_point().components().count())
+            {
+                scan.capacity = scan_capacity(disk.mount_point(), disk.total_space(), disk.available_space()).ok();
+            }
+        }
+    }
+    Ok(summary)
 }
 
 #[tauri::command]

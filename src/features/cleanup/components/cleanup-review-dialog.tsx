@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangleIcon, LoaderCircleIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { PathText } from "@/components/core/path-text";
@@ -30,6 +30,7 @@ export function CleanupReviewDialog({
   title: string;
   onComplete?: (result: CleanupResult) => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<CleanupResult | null>(null);
   const preview = useMutation({
@@ -38,6 +39,7 @@ export function CleanupReviewDialog({
   const cleanup = useMutation({
     mutationFn: () => trashCleanupTargets(items),
     onSuccess: (value) => {
+      void queryClient.invalidateQueries({ queryKey: ["current-scan"] });
       setResult(value);
       onComplete?.(value);
     },
@@ -57,7 +59,7 @@ export function CleanupReviewDialog({
         }
       }}
     >
-      <DialogTrigger render={<Button />}>Review selected</DialogTrigger>
+      <DialogTrigger render={<Button />}>Move all to Trash…</DialogTrigger>
       <DialogContent className="flex max-h-[min(88vh,760px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
         <DialogHeader className="border-b border-border p-5 pr-12">
           <DialogTitle>{result ? "Cleanup complete" : title}</DialogTitle>
@@ -76,8 +78,8 @@ export function CleanupReviewDialog({
                   value={result.movedIds.length.toLocaleString()}
                 />
                 <Metric
-                  label="Reclaimed"
-                  value={formatBytes(result.reclaimedSizeBytes)}
+                  label="Moved to Trash"
+                  value={formatBytes(result.processedSizeBytes)}
                 />
                 <Metric
                   label="Failed"
@@ -88,7 +90,7 @@ export function CleanupReviewDialog({
                 <Issue key={issue.id} path={issue.path} reason={issue.reason} />
               ))}
               <p className="text-sm text-muted-foreground">
-                Run a new scan to refresh storage totals throughout the app.
+                Files in Trash still use disk space. Empty the system Trash to actually reclaim it; storage totals refresh automatically.
               </p>
             </div>
           ) : (
@@ -106,6 +108,7 @@ export function CleanupReviewDialog({
                   )}
                 />
                 <Metric label="Destination" value="System Trash" />
+              <Notice>Moving items to Trash is reversible, but does not free disk space until you empty Trash.</Notice>
               </div>
               {preview.isPending && (
                 <Notice loading>

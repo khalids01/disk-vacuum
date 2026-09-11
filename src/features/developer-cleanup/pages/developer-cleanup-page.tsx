@@ -422,13 +422,22 @@ function ArtifactRow({
   onInspect: () => void;
 }) {
   return (
-    <div className="grid gap-3 p-4 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5">
+    <div
+      role="checkbox"
+      aria-checked={selected}
+      tabIndex={item.safety === "protected" ? -1 : 0}
+      className="grid cursor-pointer gap-3 p-4 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:px-5"
+      onClick={onToggle}
+      onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); onToggle(); } }}
+    >
+      <span onClick={(event) => event.stopPropagation()}>
       <Checkbox
         checked={selected}
         disabled={item.safety === "protected"}
         aria-label={`Select ${item.path} for review`}
         onCheckedChange={onToggle}
       />
+      </span>
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium">{item.projectName}</p>
@@ -445,7 +454,7 @@ function ArtifactRow({
           {item.explanation} {item.regeneration}
         </p>
       </div>
-      <div className="flex gap-2 sm:justify-end">
+      <div className="flex gap-2 sm:justify-end" onClick={(event) => event.stopPropagation()}>
         <Button variant="outline" size="sm" onClick={onInspect}>
           <FolderSearchIcon data-icon="inline-start" />
           Inspect

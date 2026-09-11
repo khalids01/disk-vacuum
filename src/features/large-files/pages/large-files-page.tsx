@@ -462,13 +462,20 @@ interface RowProps {
 function LargeFileTableRow(props: RowProps) {
   const { item } = props;
   return (
-    <tr className="hover:bg-muted/30">
-      <td className="px-4 py-3">
+    <tr
+      role="checkbox" aria-checked={props.selected}
+      className="cursor-pointer hover:bg-muted/30"
+      onClick={() => props.onToggle(item)}
+      onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); props.onToggle(item); } }}
+    >
+      <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
+        <span onClick={(event) => event.stopPropagation()}>
         <Selection
           item={item}
           selected={props.selected}
           onToggle={props.onToggle}
         />
+        </span>
       </td>
       <td className="min-w-0 px-3 py-3">
         <div className="flex min-w-0 items-center gap-3">
@@ -496,8 +503,8 @@ function LargeFileTableRow(props: RowProps) {
       <td className="px-3 py-3">
         <SafetyBadge safety={item.safety} />
       </td>
-      <td className="px-3 py-3">
-        <RowActions {...props} />
+      <td className="px-3 py-3" onClick={(event) => event.stopPropagation()}>
+        <span onClick={(event) => event.stopPropagation()}><RowActions {...props} /></span>
       </td>
     </tr>
   );
@@ -506,7 +513,7 @@ function LargeFileTableRow(props: RowProps) {
 function LargeFileCard(props: RowProps) {
   const { item } = props;
   return (
-    <article className="space-y-3 p-4">
+    <article role="checkbox" aria-checked={props.selected} tabIndex={item.safety === "protected" ? -1 : 0} className="cursor-pointer space-y-3 p-4 hover:bg-muted/30" onClick={() => props.onToggle(item)} onKeyDown={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); props.onToggle(item); } }}>
       <div className="flex items-start gap-3">
         <Selection
           item={item}

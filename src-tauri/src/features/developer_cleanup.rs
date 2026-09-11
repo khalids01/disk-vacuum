@@ -56,9 +56,15 @@ pub fn detect_artifact(
         || has("setup.cfg")
         || has("pipfile");
 
+    if ["/.nvm/", "/.volta/", "/.asdf/", "/.sdkman/", "/.rustup/", "/.pyenv/"]
+        .iter().any(|part| path.contains(part))
+    {
+        return None;
+    }
+
     let likely_safe = LargeFileSafety::LikelySafe;
     let detected = match name.as_str() {
-        "node_modules" => ArtifactDetection {
+        "node_modules" if node_project => ArtifactDetection {
             kind: DeveloperArtifactKind::NodeModules,
             safety: likely_safe,
             explanation: "Installed Node.js dependencies.",
@@ -101,9 +107,9 @@ pub fn detect_artifact(
         "dist" | "build" | "out" if node_project || python_project || has("cargo.toml") => {
             ArtifactDetection {
                 kind: DeveloperArtifactKind::BuildOutput,
-                safety: LargeFileSafety::Review,
-                explanation: "A likely project build-output directory.",
-                regeneration: "Confirm the project configuration before removing; a build normally recreates it.",
+                safety: likely_safe,
+                explanation: "Generated project build output.",
+                regeneration: "The project build command recreates it.",
             }
         }
         ".npm" if path.ends_with("/.npm") => ArtifactDetection {
@@ -167,5 +173,11 @@ mod tests {
         let item = detect_artifact(".venv", "/code/app/.venv", &[]).unwrap();
         assert_eq!(item.safety, LargeFileSafety::Review);
         assert!(detect_artifact("venv", "/documents/venv", &[]).is_none());
+    }
+    #[test]
+    fn protects_managed_runtimes_and_requires_project_markers() {
+        assert!(detect_artifact("node_modules", "/home/me/.nvm/versions/node/v24/lib/node_modules", &siblings(&["package.json"])).is_none());
+        assert!(detect_artifact("node_modules", "/tmp/random/node_modules", &[]).is_none());
+        assert_eq!(detect_artifact("node_modules", "/code/app/node_modules", &siblings(&["package.json"])).unwrap().safety, LargeFileSafety::LikelySafe);
     }
 }

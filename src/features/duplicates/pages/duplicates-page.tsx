@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -444,6 +444,7 @@ export function DuplicateReviewDialog({
   totalSize: number;
   onComplete: (result: CleanupResult) => Promise<CleanupResult>;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<CleanupResult | null>(null);
   const fileIds = files.map((file) => file.id);
@@ -452,7 +453,10 @@ export function DuplicateReviewDialog({
   });
   const cleanup = useMutation({
     mutationFn: () => trashDuplicateFiles(fileIds),
-    onSuccess: async (value) => setResult(await onComplete(value)),
+    onSuccess: async (value) => {
+      void queryClient.invalidateQueries({ queryKey: ["current-scan"] });
+      setResult(await onComplete(value));
+    },
   });
   const error = preview.error ?? cleanup.error;
   const ready = preview.data?.ready ?? [];
@@ -492,14 +496,15 @@ export function DuplicateReviewDialog({
                   value={result.movedIds.length.toLocaleString()}
                 />
                 <ReviewMetric
-                  label="Space reclaimed"
-                  value={formatBytes(result.reclaimedSizeBytes)}
+                  label="Moved size"
+                  value={formatBytes(result.processedSizeBytes)}
                 />
                 <ReviewMetric
                   label="Failed"
                   value={result.failed.length.toLocaleString()}
                 />
               </div>
+              <p className="text-sm text-muted-foreground">Files in Trash still use disk space until Trash is emptied.</p>
               {result.failed.map((failure) => (
                 <div
                   key={failure.id}

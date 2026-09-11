@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangleIcon, LoaderCircleIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export function PermanentDeleteDialog({
   items: CleanupTarget[];
   onComplete: (result: CleanupResult) => void;
 }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const preview = useMutation({
@@ -35,7 +36,10 @@ export function PermanentDeleteDialog({
   });
   const cleanup = useMutation({
     mutationFn: () => permanentlyDeleteCleanupFiles(items),
-    onSuccess: onComplete,
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["current-scan"] });
+      onComplete(result);
+    },
   });
   const ready = preview.data?.ready ?? [];
   const rejected = preview.data?.rejected ?? [];
@@ -52,14 +56,13 @@ export function PermanentDeleteDialog({
       }}
     >
       <DialogTrigger render={<Button variant="outline" />}>
-        Delete permanently…
+        Delete all permanently…
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Permanently delete files?</DialogTitle>
+          <DialogTitle>Permanently delete all selected items?</DialogTitle>
           <DialogDescription>
-            This bypasses Trash and cannot be undone. Directories are
-            intentionally not supported.
+            This deletes the validated files and directories immediately, bypasses Trash, and cannot be undone.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -68,7 +71,7 @@ export function PermanentDeleteDialog({
             <p>
               {preview.isPending
                 ? "Validating every selected file…"
-                : `${ready.length.toLocaleString()} regular files · ${formatBytes(preview.data?.reclaimableSizeBytes ?? 0)}`}
+                : `${ready.length.toLocaleString()} items · ${formatBytes(preview.data?.reclaimableSizeBytes ?? 0)}`}
             </p>
           </div>
           {rejected.length > 0 && (
@@ -111,7 +114,7 @@ export function PermanentDeleteDialog({
             onClick={() => cleanup.mutate()}
           >
             {cleanup.isPending && <LoaderCircleIcon className="animate-spin" />}
-            Delete permanently
+            Delete all permanently
           </Button>
         </DialogFooter>
       </DialogContent>
