@@ -1,7 +1,7 @@
 {
   "name": "disk-vacuum",
   "private": true,
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,6 +12,7 @@
     "lint": "biome lint .",
     "check": "biome ci .",
     "preview": "vite preview",
+    "website:dev": "vite website",
     "version:check": "bun scripts/version.ts --check",
     "release:prepare": "bun scripts/version.ts",
     "release:publish": "bun scripts/publish-release.ts",

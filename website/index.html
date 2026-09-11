@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#071310" />
+    <meta name="description" content="See what is using your storage, find safe cleanup opportunities, and reclaim space with confidence." />
+    <meta property="og:title" content="DiskVacuum — Understand your storage" />
+    <meta property="og:description" content="A fast, private disk analyzer and cleanup assistant for desktop." />
+    <meta property="og:image" content="assets/app-icon.png" />
+    <title>DiskVacuum — Understand your storage</title>
+    <link rel="icon" href="assets/app-icon.png" />
+    <link rel="apple-touch-icon" href="assets/app-icon.png" />
+    <link rel="manifest" href="site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="DiskVacuum home">
+        <img src="assets/app-icon.png" alt="" />
+        <span>DiskVacuum</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#safety">Safety</a>
+        <a href="#download">Download</a>
+      </nav>
+      <a class="button button-quiet header-github" href="https://github.com/khalids01/disk-vacuum" target="_blank" rel="noreferrer">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 .7a11.5 11.5 0 0 0-3.64 22.4c.58.1.79-.25.79-.56v-2.23c-3.23.7-3.91-1.37-3.91-1.37-.53-1.34-1.29-1.7-1.29-1.7-1.05-.72.08-.7.08-.7 1.16.08 1.78 1.2 1.78 1.2 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.58-.29-5.29-1.29-5.29-5.69 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.16 1.18a10.9 10.9 0 0 1 5.76 0c2.19-1.49 3.15-1.18 3.15-1.18.63 1.59.23 2.76.11 3.05.74.8 1.19 1.83 1.19 3.09 0 4.42-2.72 5.39-5.3 5.68.42.36.79 1.07.79 2.16v3.2c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .7Z"/></svg>
+        GitHub
+      </a>
+      <button class="menu-button" type="button" aria-label="Open navigation" aria-expanded="false">
+        <span></span><span></span>
+      </button>
+    </header>
+
+    <main id="top">
+      <section class="hero shell">
+        <div class="hero-copy reveal">
+          <div class="eyebrow"><span></span> Private, local-first storage care</div>
+          <h1>See what’s filling<br />your <em>disk.</em></h1>
+          <p class="hero-lead">DiskVacuum maps every corner of your storage, finds what can go, and keeps you in control from scan to cleanup.</p>
+          <div class="hero-actions">
+            <a class="button button-primary js-primary-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">
+              <span class="platform-mark">↓</span>
+              <span><small>Download latest</small><strong>DiskVacuum</strong></span>
+            </a>
+            <a class="text-link" href="#features">Explore features <span>→</span></a>
+          </div>
+          <p class="release-note"><span class="status-dot"></span><span class="js-version">Finding the latest release…</span> · Free and open source</p>
+        </div>
+
+        <div class="product-stage reveal delay-one" aria-label="DiskVacuum application preview">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="app-window">
+            <div class="window-bar">
+              <div class="traffic"><i></i><i></i><i></i></div>
+              <span>DiskVacuum</span><div></div>
+            </div>
+            <div class="app-body">
+              <aside class="mock-sidebar">
+                <div class="mock-brand"><img src="assets/app-icon.png" alt="" /><b>DiskVacuum</b></div>
+                <div class="nav-pill active"><span>⌂</span> Overview</div>
+                <div class="nav-pill"><span>⌕</span> Explorer</div>
+                <small>FIND SPACE</small>
+                <div class="nav-pill"><span>▱</span> Large files</div>
+                <div class="nav-pill"><span>◇</span> Duplicates</div>
+                <div class="nav-pill"><span>⌘</span> Developer</div>
+                <div class="sidebar-bottom"><span>⚙</span> Settings</div>
+              </aside>
+              <div class="mock-main">
+                <div class="mock-heading"><div><small>OVERVIEW</small><h2>Your storage, clearly.</h2></div><button>Scan again</button></div>
+                <div class="capacity-card">
+                  <div class="capacity-top"><span>System storage</span><strong>84% full</strong></div>
+                  <div class="capacity-bar"><i></i><i></i><i></i><i></i><i></i></div>
+                  <div class="capacity-meta"><b>236.8 GB used</b><span>42.1 GB available</span></div>
+                </div>
+                <div class="mock-grid">
+                  <div class="treemap-card">
+                    <div class="card-label"><span>Storage map</span><small>278.9 GB</small></div>
+                    <div class="treemap">
+                      <div class="tile tile-a"><b>Applications</b><span>74.2 GB</span></div>
+                      <div class="tile tile-b"><b>Projects</b><span>52.8 GB</span></div>
+                      <div class="tile tile-c"><b>Media</b><span>41.3 GB</span></div>
+                      <div class="tile tile-d"><b>System</b><span>38.9 GB</span></div>
+                      <div class="tile tile-e"><b>Other</b></div>
+                    </div>
+                  </div>
+                  <div class="opportunities-card">
+                    <div class="card-label"><span>Space to reclaim</span><small>VIEW ALL</small></div>
+                    <strong class="reclaim-number">18.6 <small>GB</small></strong>
+                    <div class="opportunity"><i class="mint"></i><span><b>Developer files</b><small>Safe to recreate</small></span><strong>9.4 GB</strong></div>
+                    <div class="opportunity"><i class="blue"></i><span><b>App caches</b><small>Review suggested</small></span><strong>5.8 GB</strong></div>
+                    <div class="opportunity"><i class="violet"></i><span><b>Duplicates</b><small>Confirmed copies</small></span><strong>3.4 GB</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="floating-stat"><span class="spark">✦</span><div><small>Safe to reclaim</small><strong>18.6 GB</strong></div></div>
+        </div>
+      </section>
+
+      <section class="trust-strip">
+        <span>Built for your privacy</span><i></i><span>No account required</span><i></i><span>No cloud upload</span><i></i><span>Open source</span>
+      </section>
+
+      <section class="section shell" id="features">
+        <div class="section-heading reveal">
+          <div><span class="section-kicker">ONE CLEAR VIEW</span><h2>Storage cleanup without the guesswork.</h2></div>
+          <p>From a full-disk map to a reviewed cleanup, every step is designed to explain what is happening and keep important files protected.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature feature-large reveal">
+            <div class="feature-icon mint-bg">⌁</div><span class="feature-number">01</span>
+            <h3>See where every gigabyte goes.</h3><p>Scan your system, home, or any folder. Navigate a proportional map and drill into directories without losing context.</p>
+            <div class="mini-map"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </article>
+          <article class="feature reveal delay-one">
+            <div class="feature-icon blue-bg">⌕</div><span class="feature-number">02</span>
+            <h3>Find the space that matters.</h3><p>Surface large files, confirmed duplicates, abandoned app data, AI models, and regeneratable developer artifacts.</p>
+            <div class="file-stack"><span><i></i><b>node_modules</b><em>8.2 GB</em></span><span><i></i><b>video-export.mov</b><em>4.1 GB</em></span><span><i></i><b>model-cache</b><em>2.8 GB</em></span></div>
+          </article>
+          <article class="feature reveal delay-two" id="safety">
+            <div class="feature-icon violet-bg">✓</div><span class="feature-number">03</span>
+            <h3>Review first. Remove safely.</h3><p>Protected locations stay protected. Add candidates to one cleanup queue, validate them again, then choose trash or permanent removal.</p>
+            <div class="safety-card"><span class="shield">✓</span><div><b>Protected by default</b><small>System paths and changed files are blocked</small></div></div>
+          </article>
+          <article class="feature feature-wide reveal">
+            <div class="feature-copy"><div class="feature-icon green-bg">↻</div><span class="feature-number">04</span><h3>Fast scans that stay useful.</h3><p>A compact local index keeps your last scan available after restart. Search and explore without rescanning, and update the app without leaving it.</p></div>
+            <div class="scan-visual"><div class="scan-ring"><span>3.7M<small>files indexed</small></span></div><div class="scan-lines"><span><i style="width:91%"></i></span><span><i style="width:72%"></i></span><span><i style="width:54%"></i></span><small>Everything stays on your device</small></div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="safety-section">
+        <div class="shell safety-layout">
+          <div class="safety-copy reveal"><span class="section-kicker">CONFIDENCE BUILT IN</span><h2>Your files never leave your computer.</h2><p>DiskVacuum scans locally and does not upload paths, names, hashes, or results. Cleanup stays review-first, with conservative operating-system protections.</p><a class="text-link light-link" href="https://github.com/khalids01/disk-vacuum#safety-model">Read the safety model <span>→</span></a></div>
+          <div class="principles reveal delay-one"><div><span>01</span><p><b>Local by design</b><small>No account, telemetry pipeline, or remote scan service.</small></p></div><div><span>02</span><p><b>Protected paths</b><small>Critical system locations cannot enter the cleanup flow.</small></p></div><div><span>03</span><p><b>Validation at removal</b><small>Each candidate is checked again immediately before cleanup.</small></p></div></div>
+        </div>
+      </section>
+
+      <section class="section download-section shell" id="download">
+        <div class="download-heading reveal"><span class="section-kicker">GET DISKVACUUM</span><h2>Make room for what matters.</h2><p>Free, open source, and built to keep your storage data private.</p></div>
+        <div class="platform-grid">
+          <article class="platform-card featured reveal" data-platform="linux"><div class="platform-top"><div class="os-icon">Linux</div><span class="available">Available</span></div><h3>Linux</h3><p>AppImage for most distributions, plus native packages for Debian, Ubuntu, Fedora, and more.</p><a class="button button-primary js-linux-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Download AppImage <span>↓</span></a><div class="alt-links"><a class="js-deb-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">.deb</a><a class="js-rpm-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">.rpm</a></div></article>
+          <article class="platform-card reveal delay-one" data-platform="mac"><div class="platform-top"><div class="os-icon">⌘</div><span class="preview-status">Preview</span></div><h3>macOS</h3><p>Native packages for Apple Silicon and Intel. Public builds still require Apple notarization.</p><div class="split-download"><a class="button button-secondary js-mac-arm-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Apple Silicon</a><a class="button button-secondary js-mac-intel-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Intel</a></div><small class="platform-warning">Gatekeeper may block this early preview.</small></article>
+          <article class="platform-card unavailable reveal delay-two"><div class="platform-top"><div class="os-icon windows-mark">⊞</div><span>Coming soon</span></div><h3>Windows</h3><p>Windows support is being tested. The download will appear here when the installer passes release verification.</p><button class="button button-disabled" disabled>Not available yet</button></article>
+          <article class="platform-card unavailable reveal delay-three"><div class="platform-top"><div class="os-icon android-mark">Android</div><span>Planned</span></div><h3>Android</h3><p>A mobile-specific storage experience is planned around Android’s scoped-storage model.</p><button class="button button-disabled" disabled>Not available yet</button></article>
+        </div>
+        <p class="release-fallback">Looking for another format? <a href="https://github.com/khalids01/disk-vacuum/releases/latest">View all release files</a>.</p>
+      </section>
+
+      <section class="closing shell reveal"><img src="assets/app-icon.png" alt="DiskVacuum icon" /><h2>Understand your disk.<br /><em>Reclaim it confidently.</em></h2><a class="button button-primary js-primary-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Download DiskVacuum <span>↓</span></a></section>
+    </main>
+
+    <footer><div class="shell footer-inner"><a class="brand" href="#top"><img src="assets/app-icon.png" alt="" /><span>DiskVacuum</span></a><p>Private, visual storage care.</p><div><a href="https://github.com/khalids01/disk-vacuum">GitHub</a><a href="https://github.com/khalids01/disk-vacuum/issues">Issues</a><a href="https://github.com/khalids01/disk-vacuum/releases">Releases</a></div></div></footer>
+  </body>
+</html>
