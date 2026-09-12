@@ -20,7 +20,7 @@ jobs:
             args: ""
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
@@ -53,13 +53,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Build combined updater manifest and publish
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const tag = context.ref.replace("refs/tags/", "");
             const version = tag.replace(/^v/, "");
             const { owner, repo } = context.repo;
-            const { data: release } = await github.rest.repos.getReleaseByTag({ owner, repo, tag });
+            const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
+            const release = releases.find((candidate) => candidate.tag_name === tag);
+            if (!release) throw new Error("Draft release not found for " + tag);
             const assets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
             const find = (suffix) => {
               const asset = assets.find((candidate) => candidate.name.endsWith(suffix));

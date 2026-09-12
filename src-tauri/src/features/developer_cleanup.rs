@@ -56,8 +56,16 @@ pub fn detect_artifact(
         || has("setup.cfg")
         || has("pipfile");
 
-    if ["/.nvm/", "/.volta/", "/.asdf/", "/.sdkman/", "/.rustup/", "/.pyenv/"]
-        .iter().any(|part| path.contains(part))
+    if [
+        "/.nvm/",
+        "/.volta/",
+        "/.asdf/",
+        "/.sdkman/",
+        "/.rustup/",
+        "/.pyenv/",
+    ]
+    .iter()
+    .any(|part| path.contains(part))
     {
         return None;
     }
@@ -176,8 +184,22 @@ mod tests {
     }
     #[test]
     fn protects_managed_runtimes_and_requires_project_markers() {
-        assert!(detect_artifact("node_modules", "/home/me/.nvm/versions/node/v24/lib/node_modules", &siblings(&["package.json"])).is_none());
+        assert!(detect_artifact(
+            "node_modules",
+            "/home/me/.nvm/versions/node/v24/lib/node_modules",
+            &siblings(&["package.json"])
+        )
+        .is_none());
         assert!(detect_artifact("node_modules", "/tmp/random/node_modules", &[]).is_none());
-        assert_eq!(detect_artifact("node_modules", "/code/app/node_modules", &siblings(&["package.json"])).unwrap().safety, LargeFileSafety::LikelySafe);
+        assert_eq!(
+            detect_artifact(
+                "node_modules",
+                "/code/app/node_modules",
+                &siblings(&["package.json"])
+            )
+            .unwrap()
+            .safety,
+            LargeFileSafety::LikelySafe
+        );
     }
 }

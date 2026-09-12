@@ -1,7 +1,10 @@
 use crate::{
     app_state::AppState,
     features::safety::{cleanup_policy, protected_path, CleanupPolicy},
-    features::scan::model::{DuplicateFile, DuplicateGroup, DuplicateReport, ScanCategory},
+    features::scan::{
+        filesystem_identity::allocated_size,
+        model::{DuplicateFile, DuplicateGroup, DuplicateReport},
+    },
 };
 use serde::Serialize;
 use std::{collections::HashSet, fs, fs::File, io::Read, path::Path};
@@ -194,7 +197,7 @@ fn validate_file(root: &Path, file: &DuplicateFile, expected_hash: &str) -> Resu
     if !metadata.is_file() {
         return Err("The selected path is no longer a regular file.".into());
     }
-    if metadata.len() != file.size_bytes {
+    if allocated_size(&metadata) != file.size_bytes {
         return Err("The file size changed after duplicate analysis.".into());
     }
     let canonical =
@@ -297,7 +300,7 @@ mod tests {
         fs::create_dir_all(&root).unwrap();
         let path = root.join("copy.bin");
         fs::write(&path, b"original").unwrap();
-        let file = fixture(&path, 8);
+        let file = fixture(&path, allocated_size(&fs::metadata(&path).unwrap()));
         let hash = full_hash(&path).unwrap();
         assert!(validate_file(&root, &file, &hash).is_ok());
 
@@ -308,10 +311,26 @@ mod tests {
 
         let outside_path = base.join("outside.bin");
         fs::write(&outside_path, b"original").unwrap();
-        let outside = fixture(&outside_path, 8);
+        let outside = fixture(
+            &outside_path,
+            allocated_size(&fs::metadata(&outside_path).unwrap()),
+        );
         assert!(validate_file(&root, &outside, &hash)
             .unwrap_err()
             .contains("outside the current scan scope"));
+        fs::remove_dir_all(base).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn accepts_the_same_allocated_file_size_used_by_the_scanner() {
+        let base = std::env::temp_dir().join("disk-vacuum-cleanup-allocated-size-test");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(&base).unwrap();
+        let path = base.join("small.bin");
+        fs::write(&path, b"small").unwrap();
+        let scanned_size = allocated_size(&fs::metadata(&path).unwrap());
+        assert!(validate_target_path(&base, &path.to_string_lossy(), scanned_size).is_ok());
         fs::remove_dir_all(base).unwrap();
     }
 
@@ -417,7 +436,9 @@ pub async fn permanently_delete_cleanup_files(
         let metadata = fs::symlink_metadata(&target.path)
             .map_err(|error| format!("A selected file is unavailable: {error}"))?;
         if (!metadata.is_file() && !metadata.is_dir()) || metadata.file_type().is_symlink() {
-            return Err("Permanent deletion is limited to verified regular files and directories.".into());
+            return Err(
+                "Permanent deletion is limited to verified regular files and directories.".into(),
+            );
         }
     }
     let outcomes = tauri::async_runtime::spawn_blocking(move || {
@@ -429,7 +450,8 @@ pub async fn permanently_delete_cleanup_files(
                     fs::remove_dir_all(&target.path)
                 } else {
                     fs::remove_file(&target.path)
-                }.map_err(|error| error.to_string());
+                }
+                .map_err(|error| error.to_string());
                 (target, result)
             })
             .collect::<Vec<_>>()
@@ -457,7 +479,8 @@ pub async fn permanently_delete_cleanup_files(
         moved_ids,
         failed,
         processed_size_bytes,
-        reclaimed_size_bytes: available_before.zip(available_space_for_root(&state))
+        reclaimed_size_bytes: available_before
+            .zip(available_space_for_root(&state))
             .map(|(before, after)| after.saturating_sub(before))
             .unwrap_or(processed_size_bytes),
     })
@@ -466,7 +489,9 @@ pub async fn permanently_delete_cleanup_files(
 fn available_space_for_root(state: &AppState) -> Option<u64> {
     let root = state.scan_repository.scan_root_path().ok()?;
     let disks = Disks::new_with_refreshed_list();
-    disks.list().iter()
+    disks
+        .list()
+        .iter()
         .filter(|disk| root.starts_with(disk.mount_point()))
         .max_by_key(|disk| disk.mount_point().components().count())
         .map(|disk| disk.available_space())
@@ -492,11 +517,15 @@ fn validate_targets(
             .scan_repository
             .node_details(target.parent_directory_id, target.id)
             .and_then(|indexed| {
-                if indexed.path != target.path || indexed.size_bytes != target.size_bytes {
-                    return Err("The selection no longer matches the saved scan.".into());
+                if indexed.size_bytes != target.size_bytes {
+                    return Err("The item size no longer matches the saved scan. Run a new scan and try again.".into());
                 }
-                if indexed.category == ScanCategory::System {
-                    return Err("System files are protected from cleanup.".into());
+                let indexed_path = fs::canonicalize(&indexed.path)
+                    .map_err(|error| format!("The indexed path cannot be verified: {error}"))?;
+                let selected_path = fs::canonicalize(&target.path)
+                    .map_err(|error| format!("Path cannot be verified: {error}"))?;
+                if indexed_path != selected_path {
+                    return Err("The selected path no longer points to the indexed item. Run a new scan and try again.".into());
                 }
                 let canonical = fs::canonicalize(&target.path)
                     .map_err(|error| format!("Path cannot be verified: {error}"))?;
@@ -541,7 +570,7 @@ fn validate_target_path(root: &Path, value: &str, expected_size: u64) -> Result<
     if !metadata.is_file() && !metadata.is_dir() {
         return Err("The selected path is not a regular file or directory.".into());
     }
-    if metadata.is_file() && metadata.len() != expected_size {
+    if metadata.is_file() && allocated_size(&metadata) != expected_size {
         return Err("The file changed after the scan.".into());
     }
     let canonical =

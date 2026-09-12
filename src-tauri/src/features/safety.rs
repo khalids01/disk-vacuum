@@ -25,7 +25,9 @@ pub fn cleanup_policy(path: &Path) -> CleanupPolicy {
             CleanupPolicy::AutoClean
         }
         "node_modules" if parent.join("package.json").is_file() => CleanupPolicy::Regeneratable,
-        "dist" | "build" | "out" if parent.join("package.json").is_file() => CleanupPolicy::Regeneratable,
+        "dist" | "build" | "out" if parent.join("package.json").is_file() => {
+            CleanupPolicy::Regeneratable
+        }
         "target" if parent.join("Cargo.toml").is_file() || parent.join("pom.xml").is_file() => {
             CleanupPolicy::Regeneratable
         }
@@ -43,9 +45,14 @@ pub fn cleanup_policy(path: &Path) -> CleanupPolicy {
 }
 
 fn managed_runtime_path(path: &Path) -> bool {
-    path.components().any(|component| component.as_os_str().to_str().is_some_and(|value| {
-        matches!(value.to_ascii_lowercase().as_str(), ".nvm" | ".volta" | ".asdf" | ".sdkman" | ".rustup" | ".pyenv")
-    }))
+    path.components().any(|component| {
+        component.as_os_str().to_str().is_some_and(|value| {
+            matches!(
+                value.to_ascii_lowercase().as_str(),
+                ".nvm" | ".volta" | ".asdf" | ".sdkman" | ".rustup" | ".pyenv"
+            )
+        })
+    })
 }
 
 fn has_project_extension(parent: &Path, extensions: &[&str]) -> bool {
@@ -89,18 +96,7 @@ pub fn protected_path(path: &Path) -> bool {
     }
     #[cfg(target_os = "macos")]
     {
-        const ROOTS: &[&str] = &[
-            "/System",
-            "/Library",
-            "/Applications",
-            "/bin",
-            "/sbin",
-            "/usr",
-            "/private",
-        ];
-        return ROOTS
-            .iter()
-            .any(|root| path == Path::new(root) || path.starts_with(root));
+        return macos_protected_path(path);
     }
     #[cfg(target_os = "windows")]
     {
@@ -146,6 +142,25 @@ pub fn protected_path(path: &Path) -> bool {
     }
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn macos_protected_path(path: &Path) -> bool {
+    let normalized = path
+        .strip_prefix("/System/Volumes/Data")
+        .map(|suffix| Path::new("/").join(suffix))
+        .unwrap_or_else(|_| path.to_path_buf());
+    [
+        "/System",
+        "/Library",
+        "/Applications",
+        "/bin",
+        "/sbin",
+        "/usr",
+        "/private",
+    ]
+    .iter()
+    .any(|root| normalized == Path::new(root) || normalized.starts_with(root))
+}
+
 #[cfg(target_os = "windows")]
 fn starts_with_windows_path(path: &str, root: &str) -> bool {
     let root = root
@@ -178,7 +193,25 @@ mod tests {
         );
     }
     #[test]
+    fn macos_data_volume_user_paths_are_not_system_paths() {
+        assert!(!macos_protected_path(Path::new(
+            "/System/Volumes/Data/Users/me/Library/Caches/tool"
+        )));
+        assert!(macos_protected_path(Path::new(
+            "/System/Volumes/Data/System/Library"
+        )));
+        assert!(macos_protected_path(Path::new(
+            "/System/Volumes/Data/private/var"
+        )));
+    }
+
+    #[test]
     fn runtime_managers_are_always_protected() {
-        assert_eq!(cleanup_policy(Path::new("/home/me/.nvm/versions/node/v24/lib/node_modules")), CleanupPolicy::Protected);
+        assert_eq!(
+            cleanup_policy(Path::new(
+                "/home/me/.nvm/versions/node/v24/lib/node_modules"
+            )),
+            CleanupPolicy::Protected
+        );
     }
 }

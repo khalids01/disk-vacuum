@@ -1,6 +1,6 @@
 mod capacity;
 mod classification;
-mod filesystem_identity;
+pub(crate) mod filesystem_identity;
 #[cfg(test)]
 mod large_files;
 pub mod model;
