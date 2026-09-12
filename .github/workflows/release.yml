@@ -84,7 +84,9 @@ jobs:
             };
             const entry = async (suffix) => {
               const artifact = find(suffix);
-              return { signature: await signature(artifact), url: artifact.browser_download_url };
+              const encodedName = artifact.name.split("/").map(encodeURIComponent).join("/");
+              const url = `https://github.com/${owner}/${repo}/releases/download/${tag}/${encodedName}`;
+              return { signature: await signature(artifact), url };
             };
             const linuxAppImage = await entry("_amd64.AppImage");
             const linuxDeb = await entry("_amd64.deb");
