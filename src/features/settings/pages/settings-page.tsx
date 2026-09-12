@@ -3,7 +3,10 @@ import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   FolderPlusIcon,
+  MinusIcon,
   MonitorCogIcon,
+  PlusIcon,
+  RotateCcwIcon,
   ShieldCheckIcon,
   Trash2Icon,
 } from "lucide-react";
@@ -27,12 +30,21 @@ import {
 } from "@/features/settings/api/settings-api";
 import { settingsQuery } from "@/features/settings/api/settings-queries";
 import { UpdateControl } from "@/features/updates/components/update-control";
+import {
+  MAX_ZOOM_LEVEL,
+  MIN_ZOOM_LEVEL,
+  useAppStore,
+} from "@/stores/app-store";
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(settingsQuery);
   const [draftThreshold, setDraftThreshold] = useState("100");
+  const zoomLevel = useAppStore((state) => state.zoomLevel);
+  const zoomIn = useAppStore((state) => state.zoomIn);
+  const zoomOut = useAppStore((state) => state.zoomOut);
+  const resetZoom = useAppStore((state) => state.resetZoom);
   const mutation = useMutation({
     mutationFn: saveSettings,
     onSuccess: (settings) =>
@@ -169,6 +181,52 @@ export function SettingsPage() {
                 ))}
               </div>
             )}
+          </SettingsSection>
+
+          <SettingsSection
+            title="Interface zoom"
+            description="Resize the entire DiskVacuum interface. Your zoom level is saved for the next launch."
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Zoom out"
+                title="Zoom out (Ctrl or Command and minus)"
+                disabled={zoomLevel <= MIN_ZOOM_LEVEL}
+                onClick={zoomOut}
+              >
+                <MinusIcon />
+              </Button>
+              <div
+                className="grid h-8 min-w-20 place-items-center rounded-lg border border-border bg-background/60 px-3 text-sm font-semibold tabular-nums"
+                aria-live="polite"
+              >
+                {Math.round(zoomLevel * 100)}%
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Zoom in"
+                title="Zoom in (Ctrl or Command and plus)"
+                disabled={zoomLevel >= MAX_ZOOM_LEVEL}
+                onClick={zoomIn}
+              >
+                <PlusIcon />
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={zoomLevel === 1}
+                onClick={resetZoom}
+              >
+                <RotateCcwIcon data-icon="inline-start" />
+                Reset to 100%
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Shortcuts: Ctrl/Command + Plus, Ctrl/Command + Minus, and
+              Ctrl/Command + 0 to reset.
+            </p>
           </SettingsSection>
 
           <SettingsSection

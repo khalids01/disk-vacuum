@@ -25,12 +25,12 @@ export function Sidebar() {
               size="lg"
               tooltip="DiskVacuum"
               render={<Link to="/overview" />}
-              className="group-data-[collapsible=icon]:justify-center"
+              className="group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!"
             >
               <img
                 src="/app-icon.png"
                 alt=""
-                className="size-8 shrink-0 rounded-lg shadow-[0_8px_18px_-8px_oklch(0.79_0.15_158)]"
+                className="size-9 shrink-0 rounded-xl shadow-[0_8px_18px_-8px_oklch(0.79_0.15_158)]"
               />
               <span className="min-w-0 group-data-[collapsible=icon]:hidden">
                 <span className="block truncate text-sm font-bold tracking-tight">
@@ -44,7 +44,7 @@ export function Sidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="transition-[padding] duration-200 group-data-[collapsible=icon]:pt-3">
         <AppSidebarContent collapsed={collapsed} />
       </SidebarContent>
       <SidebarFooter className="p-0 group-data-[collapsible=icon]:hidden">

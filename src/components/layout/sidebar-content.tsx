@@ -90,10 +90,10 @@ export function SidebarContent({
                       isActive={active}
                       tooltip={item.label}
                       size="lg"
-                      className="text-muted-foreground group-data-[collapsible=icon]:justify-center data-active:text-sidebar-accent-foreground"
+                      className="text-muted-foreground [&_svg]:size-[18px] group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-active:text-sidebar-accent-foreground"
                       aria-label={collapsed ? item.label : undefined}
                     >
-                      <item.icon className="size-4" />
+                      <item.icon />
                       <span className="group-data-[collapsible=icon]:hidden">
                         {item.label}
                       </span>
