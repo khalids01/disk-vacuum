@@ -7,7 +7,7 @@ Use this file to continue DiskVacuum work in a new chat. It describes the state 
 - Repository: https://github.com/khalids01/disk-vacuum
 - Website: https://diskvacuum.skycanvasstudio.com/
 - Author: Khalid Khan (`@khalids01`)
-- Current version in this checkout: `0.1.10`; the matching GitHub release and updater manifest were published and verified in the prior chat.
+- Current version in this checkout: `0.1.11`; this release contains the current UI, sidebar, storage-map navigation, cleanup-safety, and interface-zoom work. Verify the matching GitHub release and updater manifest after the release workflow finishes.
 - The three original documents in `docs/` are the main product brief; `goal.md` predates them. Read the relevant product documents before making feature decisions. `docs/ux-improvement-plan.md` and `docs/todo-progress.md` track later UX and implementation work.
 - The user prefers focused, inspect-first changes, truthful platform claims, minimal abstractions, and actual runtime verification. Do not run Git commands, commit, push, tag, publish, or start app servers unless explicitly requested in the new chat. Do not assume an earlier request to publish authorizes a later publish.
 
