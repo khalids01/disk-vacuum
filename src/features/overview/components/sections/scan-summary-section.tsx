@@ -1,14 +1,10 @@
-import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
-import { SectionCard } from "@/components/core/section-card";
+import { ShieldCheckIcon } from "lucide-react";
 import { OverviewCleanupPanel } from "@/features/overview/components/sections/overview-cleanup-panel";
 import { ScanCategorySection } from "@/features/overview/components/sections/scan-category-section";
 import { ScanTreemapSection } from "@/features/overview/components/sections/scan-treemap-section";
 import { StorageCommandCenter } from "@/features/overview/components/sections/storage-command-center";
 import type { ScanSummary } from "@/features/scan/api/scan-api";
-import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanProgressPanel } from "@/features/scan/components/scan-progress-panel";
-import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
-import { formatBytes } from "@/features/scan/lib/format-bytes";
 
 interface ScanSummarySectionProps {
   summary: ScanSummary;
@@ -27,59 +23,14 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     <div className="space-y-6">
       <ScanProgressPanel />
       <StorageCommandCenter summary={summary} />
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <ScanTreemapSection summary={summary} />
-        <OverviewCleanupPanel summary={summary} skippedCount={skippedCount} />
-      </div>
+      <ScanTreemapSection
+        summary={summary}
+        aside={
+          <OverviewCleanupPanel summary={summary} skippedCount={skippedCount} />
+        }
+      />
 
       <ScanCategorySection summary={summary} />
-
-      <SectionCard className="overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <HardDriveIcon className="size-4 text-primary" />
-              <h2 className="text-sm font-semibold">{summary.targetLabel}</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The largest direct items from this completed scan.
-            </p>
-          </div>
-          {summary.capacity ? (
-            <ScanSystemButton variant="outline" size="sm">
-              Rescan System
-            </ScanSystemButton>
-          ) : (
-            <ScanHomeButton variant="outline" size="sm">
-              Scan Home
-            </ScanHomeButton>
-          )}
-        </div>
-        {summary.topLevelItems.length === 0 ? (
-          <p className="p-5 text-sm text-muted-foreground">
-            No readable files or folders were found in this location.
-          </p>
-        ) : (
-          <div className="divide-y divide-border">
-            {summary.topLevelItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-4 px-5 py-4"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-primary">
-                    <FolderIcon className="size-4" />
-                  </div>
-                  <p className="truncate text-sm font-medium">{item.name}</p>
-                </div>
-                <p className="shrink-0 text-sm text-muted-foreground">
-                  {formatBytes(item.sizeBytes)}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
 
       {skippedCount > 0 && (
         <div className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-foreground">
