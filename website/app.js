@@ -31,19 +31,26 @@ async function hydrateRelease() {
     const rpm = assetFor(assets, /x86_64\.rpm$/i);
     const macArm = assetFor(assets, /aarch64\.dmg$/i);
     const macIntel = assetFor(assets, /x64\.dmg$/i);
+    const windowsExe = assetFor(assets, /x64-setup\.exe$/i);
+    const windowsMsi = assetFor(assets, /x64_en-US\.msi$/i);
 
     setLinks(".js-linux-download", appImage);
     setLinks(".js-deb-download", deb);
     setLinks(".js-rpm-download", rpm);
     setLinks(".js-mac-arm-download", macArm);
     setLinks(".js-mac-intel-download", macIntel);
+    setLinks(".js-windows-exe-download", windowsExe);
+    setLinks(".js-windows-msi-download", windowsMsi);
 
     let preferred = appImage;
     let platformLabel = "for Linux";
     if (platform === "mac") {
       preferred = undefined;
       platformLabel = "— choose your Mac build";
-    } else if (platform === "windows" || platform === "android") {
+    } else if (platform === "windows") {
+      preferred = windowsExe ?? windowsMsi;
+      platformLabel = "for Windows";
+    } else if (platform === "android") {
       preferred = undefined;
       platformLabel = "— desktop builds available";
     }

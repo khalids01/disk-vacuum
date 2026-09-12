@@ -23,3 +23,5 @@ body{background:radial-gradient(circle at 84% 4%,rgba(34,173,125,.12),transparen
 .button-disabled{background:#14231d;color:#667a72}.platform-top .available{background:#123c2e;color:#6ff0bc}.platform-top .preview-status{background:#3a2d14;color:#f1c86d}
 footer{background:#050c0a;border-color:var(--line)}
 @media(max-width:700px){.site-header.menu-open nav{background:#0d1b16;border-color:var(--line)}}
+
+.package-downloads{display:grid;grid-template-columns:1fr 1fr;gap:6px}.package-downloads .button:first-child{grid-column:1/-1}
