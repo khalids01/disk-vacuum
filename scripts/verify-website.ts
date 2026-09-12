@@ -10,6 +10,10 @@ const requiredFiles = [
   "assets/app-icon.png",
   "CNAME",
   ".nojekyll",
+  "robots.txt",
+  "sitemap.xml",
+  "llms.txt",
+  "llm.txt",
 ];
 
 for (const file of requiredFiles) {
@@ -35,6 +39,17 @@ if (!rootHtml.includes('src="website/app.js"') || !rootHtml.includes('href="webs
 }
 if (!appHtml.includes("/src/main.tsx")) {
   throw new Error("The desktop HTML entry does not load the React application.");
+}
+for (const marker of [
+  'rel="canonical"',
+  'name="author" content="Khalid Khan"',
+  'type="application/ld+json"',
+  'class="js-version-number"',
+  'https://github.com/khalids01/disk-vacuum',
+]) {
+  if (!html.includes(marker) || !rootHtml.includes(marker)) {
+    throw new Error(`Missing website metadata marker: ${marker}`);
+  }
 }
 if (cname.trim() !== "diskvacuum.skycanvasstudio.com") {
   throw new Error("The website CNAME does not match the configured custom domain.");

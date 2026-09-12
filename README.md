@@ -4,7 +4,7 @@ A fast, visual, local-first disk analyzer and cleanup assistant built with Tauri
 
 > DiskVacuum is in early development. Linux is the currently verified platform. macOS builds are configured in CI but still require runtime verification and Apple signing/notarization before a public production release. Windows and Android support are planned.
 
-[Website](https://khalids01.github.io/disk-vacuum/) · [Download the latest release](https://github.com/khalids01/disk-vacuum/releases/latest) · [Report an issue](https://github.com/khalids01/disk-vacuum/issues) · [Development plan](docs/todo-progress.md)
+[Website](https://diskvacuum.skycanvasstudio.com/) · [Download the latest release](https://github.com/khalids01/disk-vacuum/releases/latest) · [Report an issue](https://github.com/khalids01/disk-vacuum/issues) · [Development plan](docs/todo-progress.md)
 
 ## Why DiskVacuum
 

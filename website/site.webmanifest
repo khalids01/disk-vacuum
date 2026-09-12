@@ -1,8 +1,22 @@
 {
   "name": "DiskVacuum",
   "short_name": "DiskVacuum",
-  "icons": [{ "src": "assets/app-icon.png", "sizes": "1024x1024", "type": "image/png" }],
+  "icons": [
+    {
+      "src": "assets/app-icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    }
+  ],
   "theme_color": "#071310",
   "background_color": "#050c0a",
-  "display": "standalone"
+  "display": "standalone",
+  "description": "A private, local-first disk analyzer and storage cleanup assistant.",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "utilities",
+    "productivity"
+  ]
 }

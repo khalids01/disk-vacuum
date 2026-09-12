@@ -1,7 +1,7 @@
 {
   "name": "disk-vacuum",
   "private": true,
-  "version": "0.1.9",
+  "version": "0.1.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -50,5 +50,14 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
+  },
+  "author": {
+    "name": "Khalid Khan",
+    "url": "https://github.com/khalids01"
+  },
+  "homepage": "https://diskvacuum.skycanvasstudio.com/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khalids01/disk-vacuum.git"
   }
 }

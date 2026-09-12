@@ -25,3 +25,5 @@ footer{background:#050c0a;border-color:var(--line)}
 @media(max-width:700px){.site-header.menu-open nav{background:#0d1b16;border-color:var(--line)}}
 
 .package-downloads{display:grid;grid-template-columns:1fr 1fr;gap:6px}.package-downloads .button:first-child{grid-column:1/-1}
+
+.footer-meta{margin-left:7px;color:#657870}.footer-meta a{text-decoration:underline;text-decoration-color:rgba(145,164,157,.35);text-underline-offset:2px}

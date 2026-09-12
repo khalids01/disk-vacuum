@@ -1,0 +1,24 @@
+# DiskVacuum
+
+> DiskVacuum is a free, open-source, local-first disk analyzer and storage cleanup application for Linux, macOS, and Windows.
+
+DiskVacuum scans storage locally, visualizes disk usage, finds large files and duplicates, identifies regeneratable developer artifacts, protects critical system paths, and lets users review cleanup candidates before moving them to trash or deleting them permanently. No account is required and scan data is not uploaded.
+
+## Official links
+
+- Website: https://diskvacuum.skycanvasstudio.com/
+- Source repository: https://github.com/khalids01/disk-vacuum
+- Releases: https://github.com/khalids01/disk-vacuum/releases/latest
+- Issues: https://github.com/khalids01/disk-vacuum/issues
+- Author: Khalid Khan (https://github.com/khalids01)
+
+## Supported platforms
+
+- Linux: AppImage, Debian/Ubuntu DEB, Fedora/RHEL RPM
+- macOS: Apple Silicon and Intel DMG preview builds
+- Windows: 64-bit setup EXE and MSI preview builds
+- Android: planned, not currently available
+
+## Safety and privacy
+
+DiskVacuum runs locally. Cleanup candidates are validated again before removal, protected operating-system paths are blocked, and users choose between trash and permanent deletion.
