@@ -19,18 +19,19 @@ import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
 const categoryStyles: Record<ScanCategory, string> = {
-  applications: "border-sky-500/45 bg-sky-500/20 hover:bg-sky-500/30",
-  documents: "border-blue-500/45 bg-blue-500/20 hover:bg-blue-500/30",
-  downloads: "border-cyan-500/45 bg-cyan-500/20 hover:bg-cyan-500/30",
-  images: "border-violet-500/45 bg-violet-500/20 hover:bg-violet-500/30",
-  video: "border-fuchsia-500/45 bg-fuchsia-500/20 hover:bg-fuchsia-500/30",
-  audio: "border-pink-500/45 bg-pink-500/20 hover:bg-pink-500/30",
-  archives: "border-amber-500/45 bg-amber-500/20 hover:bg-amber-500/30",
-  developer: "border-emerald-500/45 bg-emerald-500/20 hover:bg-emerald-500/30",
-  ai: "border-teal-500/45 bg-teal-500/20 hover:bg-teal-500/30",
-  caches: "border-orange-500/45 bg-orange-500/20 hover:bg-orange-500/30",
-  system: "border-slate-500/45 bg-slate-500/20 hover:bg-slate-500/30",
-  other: "border-zinc-500/45 bg-zinc-500/20 hover:bg-zinc-500/30",
+  applications:
+    "border-emerald-400/70 bg-emerald-600/85 hover:bg-emerald-500/90",
+  documents: "border-sky-400/70 bg-sky-600/85 hover:bg-sky-500/90",
+  downloads: "border-cyan-400/70 bg-cyan-600/85 hover:bg-cyan-500/90",
+  images: "border-violet-400/70 bg-violet-600/85 hover:bg-violet-500/90",
+  video: "border-fuchsia-400/70 bg-fuchsia-600/85 hover:bg-fuchsia-500/90",
+  audio: "border-pink-400/70 bg-pink-600/85 hover:bg-pink-500/90",
+  archives: "border-amber-300/70 bg-amber-600/85 hover:bg-amber-500/90",
+  developer: "border-teal-400/70 bg-teal-600/85 hover:bg-teal-500/90",
+  ai: "border-indigo-400/70 bg-indigo-600/85 hover:bg-indigo-500/90",
+  caches: "border-orange-300/70 bg-orange-600/85 hover:bg-orange-500/90",
+  system: "border-amber-300/70 bg-amber-600/85 hover:bg-amber-500/90",
+  other: "border-slate-400/70 bg-slate-600/85 hover:bg-slate-500/90",
 };
 
 interface BreadcrumbItem {
@@ -81,7 +82,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
   const selectedNodeId = selectedNode?.id ?? null;
 
   return (
-    <SectionCard className="overflow-visible">
+    <SectionCard className="overflow-visible border-primary/15 bg-card/90">
       <div className="sticky top-0 z-20 rounded-t-lg border-b border-border bg-card/95 px-4 py-4 backdrop-blur sm:px-5">
         <div className="flex items-center gap-2">
           <Button
@@ -148,7 +149,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
           ) : (
             <>
               <section
-                className="relative h-[22rem] overflow-hidden bg-muted/30 p-0.5 sm:h-[30rem]"
+                className="relative h-[22rem] overflow-hidden bg-[#09140f] p-1 sm:h-[30rem]"
                 aria-label={`Storage map for ${activeDirectory.name}`}
               >
                 {rectangles.map((rectangle, index) => {
@@ -194,7 +195,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
                           <span className="mt-1 block font-mono text-[11px]">
                             {formatBytes(node.sizeBytes)}
                           </span>
-                          <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
+                          <span className="mt-0.5 block truncate text-[10px] text-white/65">
                             {node.kind === "group"
                               ? `${node.groupedItemCount.toLocaleString()} smaller items`
                               : formatScanCategory(node.category)}

@@ -1,5 +1,5 @@
 import { SectionCard } from "@/components/core/section-card";
-import type { ScanSummary } from "@/features/scan/api/scan-api";
+import type { ScanCategory, ScanSummary } from "@/features/scan/api/scan-api";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
@@ -22,7 +22,7 @@ export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
               : 0;
 
           return (
-            <div key={item.category} className="px-5 py-3">
+            <div key={item.category} className="px-5 py-3.5">
               <div className="flex items-center justify-between gap-4 text-sm">
                 <span className="font-medium">
                   {formatScanCategory(item.category)}
@@ -34,7 +34,7 @@ export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-primary"
+                  className={`h-full rounded-full ${categoryBarStyles[item.category]}`}
                   style={{ width: `${Math.max(percent, 0.5)}%` }}
                 />
               </div>
@@ -45,3 +45,18 @@ export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
     </SectionCard>
   );
 }
+
+const categoryBarStyles: Record<ScanCategory, string> = {
+  applications: "bg-emerald-500",
+  documents: "bg-sky-500",
+  downloads: "bg-cyan-500",
+  images: "bg-violet-500",
+  video: "bg-fuchsia-500",
+  audio: "bg-pink-500",
+  archives: "bg-amber-500",
+  developer: "bg-teal-500",
+  ai: "bg-indigo-500",
+  caches: "bg-orange-500",
+  system: "bg-slate-500",
+  other: "bg-zinc-500",
+};

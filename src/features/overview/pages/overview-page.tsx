@@ -9,13 +9,17 @@ export function OverviewPage() {
   const { data: currentScan } = useQuery(currentScanQuery);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <PageHeader
-        eyebrow="Space map"
-        title="Storage overview"
+        eyebrow="Overview"
+        title={
+          currentScan
+            ? "Your storage, clearly."
+            : "See what's filling your disk."
+        }
         description={
           currentScan
-            ? "A bounded summary of the current completed scan."
+            ? undefined
             : "Choose a scan target to turn your storage into a clear, reviewable map."
         }
       />

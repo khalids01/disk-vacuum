@@ -8,7 +8,7 @@ export function SectionCard({
   return (
     <section
       className={cn(
-        "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+        "rounded-2xl border border-border bg-card text-card-foreground shadow-[0_18px_50px_-30px_rgb(0_0_0_/_0.7)]",
         className,
       )}
       {...props}

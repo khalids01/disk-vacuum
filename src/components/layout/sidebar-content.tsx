@@ -16,7 +16,15 @@ interface SidebarContentProps {
 
 export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const pathname = useLocation({ select: (location) => location.pathname });
-  const cleanupRoutes = new Set(["/cleanup", "/cleanup-queue", "/large-files", "/duplicates", "/developer-cleanup", "/ai-storage", "/app-leftovers"]);
+  const cleanupRoutes = new Set([
+    "/cleanup",
+    "/cleanup-queue",
+    "/large-files",
+    "/duplicates",
+    "/developer-cleanup",
+    "/ai-storage",
+    "/app-leftovers",
+  ]);
   const { data: currentScan } = useQuery(currentScanQuery);
   const { data: settings } = useQuery(settingsQuery);
   const scanStatus = useScanStore((state) => state.status);
@@ -24,9 +32,11 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
   const isScanActive = scanStatus === "scanning" || scanStatus === "cancelling";
   const progressLabel = `${(scanProgress?.entriesVisited ?? 0).toLocaleString()} items inspected`;
   return (
-    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-4">
-      <div className="rounded-xl border border-border bg-card p-3">
-        <p className="text-xs font-medium text-muted-foreground">Scan target</p>
+    <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+      <div className="rounded-2xl border border-border bg-card/75 p-3.5 shadow-[0_14px_32px_-26px_rgb(0_0_0_/_0.8)]">
+        <p className="text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
+          Scan target
+        </p>
         {currentScan ? (
           <>
             <p className="mt-1 text-sm font-medium">
@@ -49,22 +59,30 @@ export function SidebarContent({ onNavigate }: SidebarContentProps) {
       </div>
       {navigationGroups.map((group) => (
         <div key={group.label}>
-          <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="px-2 pb-1.5 text-[10px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
             {group.label}
           </p>
           <div className="space-y-0.5">
             {group.items.map((item) => {
-              const active = item.to === "/cleanup" ? cleanupRoutes.has(pathname) : pathname === item.to;
+              const active =
+                item.to === "/cleanup"
+                  ? cleanupRoutes.has(pathname)
+                  : pathname === item.to;
               return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={onNavigate}
-                className={"flex min-h-10 items-center gap-2 rounded-md px-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground " + (active ? "bg-accent text-accent-foreground" : "text-muted-foreground")}
-              >
-                <item.icon className="size-4" />
-                <span>{item.label}</span>
-              </Link>
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={
+                    "flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground " +
+                    (active
+                      ? "bg-accent font-medium text-accent-foreground shadow-sm"
+                      : "text-muted-foreground")
+                  }
+                >
+                  <item.icon className="size-4" />
+                  <span>{item.label}</span>
+                </Link>
               );
             })}
           </div>

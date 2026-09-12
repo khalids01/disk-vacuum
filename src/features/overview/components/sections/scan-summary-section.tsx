@@ -1,5 +1,6 @@
 import { FolderIcon, HardDriveIcon, ShieldCheckIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
+import { OverviewCleanupPanel } from "@/features/overview/components/sections/overview-cleanup-panel";
 import { ScanCategorySection } from "@/features/overview/components/sections/scan-category-section";
 import { ScanTreemapSection } from "@/features/overview/components/sections/scan-treemap-section";
 import { StorageCommandCenter } from "@/features/overview/components/sections/storage-command-center";
@@ -23,25 +24,28 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     summary.skippedSpecialFileCount;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <ScanProgressPanel />
       <StorageCommandCenter summary={summary} />
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <ScanTreemapSection summary={summary} />
+        <OverviewCleanupPanel />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
         <Metric
           label="Folders"
           value={summary.directoryCount.toLocaleString()}
         />
         <Metric
-          label="Largest entries"
-          value={String(summary.topLevelItems.length)}
+          label="Files inspected"
+          value={summary.fileCount.toLocaleString()}
         />
         <Metric
           label="Scan coverage notes"
           value={skippedCount.toLocaleString()}
         />
       </div>
-
-      <ScanTreemapSection summary={summary} />
 
       <ScanCategorySection summary={summary} />
 
@@ -114,9 +118,9 @@ interface MetricProps {
 
 function Metric({ label, value }: MetricProps) {
   return (
-    <SectionCard className="p-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-2 text-xl font-semibold tracking-tight">{value}</p>
+    <SectionCard className="border-border/80 bg-card/80 p-4">
+      <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-bold tracking-[-0.045em]">{value}</p>
     </SectionCard>
   );
 }

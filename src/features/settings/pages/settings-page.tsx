@@ -27,14 +27,11 @@ import {
 } from "@/features/settings/api/settings-api";
 import { settingsQuery } from "@/features/settings/api/settings-queries";
 import { UpdateControl } from "@/features/updates/components/update-control";
-import { type Theme, useThemeStore } from "@/stores/theme-store";
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const query = useQuery(settingsQuery);
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
   const [draftThreshold, setDraftThreshold] = useState("100");
   const mutation = useMutation({
     mutationFn: saveSettings,
@@ -76,27 +73,6 @@ export function SettingsPage() {
       {query.isError && <Message>Settings could not be loaded.</Message>}
       {settings && (
         <>
-          <SettingsSection
-            title="Appearance"
-            description="Choose a fixed theme or continue following your operating system."
-          >
-            <Field label="Theme">
-              <Select
-                value={theme}
-                onValueChange={(value) => value && setTheme(value as Theme)}
-              >
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="system">System default</SelectItem>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          </SettingsSection>
-
           <SettingsSection
             title="Scan preferences"
             description="These defaults shape discovery views; explicit Scan buttons still do exactly what they say."

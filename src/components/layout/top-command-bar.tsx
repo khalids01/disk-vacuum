@@ -1,7 +1,6 @@
 import { ChevronRightIcon, RotateCwIcon, SearchIcon } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { MobileNavigation } from "@/components/layout/mobile-navigation";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { useSearchStore } from "@/stores/search-store";
 
@@ -9,20 +8,54 @@ export function TopCommandBar() {
   const pathname = useLocation({ select: (location) => location.pathname });
   const openSearch = useSearchStore((state) => state.openSearch);
   const shortcutLabel = navigator.userAgent.includes("Mac") ? "⌘ K" : "Ctrl K";
-  const cleanupChild = ["/cleanup-queue", "/large-files", "/duplicates", "/developer-cleanup", "/ai-storage", "/app-leftovers"].includes(pathname);
-  const pageLabel: Record<string, string> = { "/overview": "Overview", "/explorer": "Explore Files", "/cleanup": "Clean Up", "/cleanup-queue": "Cleanup Queue", "/large-files": "Large Files", "/duplicates": "Duplicates", "/developer-cleanup": "Developer Cleanup", "/ai-storage": "AI Storage", "/app-leftovers": "App Leftovers", "/system": "System", "/settings": "Settings" };
+  const cleanupChild = [
+    "/cleanup-queue",
+    "/large-files",
+    "/duplicates",
+    "/developer-cleanup",
+    "/ai-storage",
+    "/app-leftovers",
+  ].includes(pathname);
+  const pageLabel: Record<string, string> = {
+    "/overview": "Overview",
+    "/explorer": "Explore Files",
+    "/cleanup": "Clean Up",
+    "/cleanup-queue": "Cleanup Queue",
+    "/large-files": "Large Files",
+    "/duplicates": "Duplicates",
+    "/developer-cleanup": "Developer Cleanup",
+    "/ai-storage": "AI Storage",
+    "/app-leftovers": "App Leftovers",
+    "/system": "System",
+    "/settings": "Settings",
+  };
   const currentLabel = pageLabel[pathname] ?? "DiskVacuum";
 
   return (
-    <header className="relative flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-6">
+    <header className="relative flex h-[4.5rem] items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-xl lg:px-6">
       <MobileNavigation />
-      <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-        <Link to="/overview" className="shrink-0 text-muted-foreground hover:text-foreground">DiskVacuum</Link>
+      <nav
+        aria-label="Breadcrumb"
+        className="flex min-w-0 flex-1 items-center gap-1.5 text-sm"
+      >
+        <Link
+          to="/overview"
+          className="shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          DiskVacuum
+        </Link>
         <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        {cleanupChild && (<>
-          <Link to="/cleanup" className="shrink-0 text-muted-foreground hover:text-foreground">Clean Up</Link>
-          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
-        </>)}
+        {cleanupChild && (
+          <>
+            <Link
+              to="/cleanup"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+            >
+              Clean Up
+            </Link>
+            <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          </>
+        )}
         <span className="truncate font-semibold">{currentLabel}</span>
       </nav>
       <Button
@@ -54,7 +87,6 @@ export function TopCommandBar() {
       >
         <RotateCwIcon />
       </Button>
-      <ThemeToggle />
     </header>
   );
 }
