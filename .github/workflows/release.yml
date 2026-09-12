@@ -54,6 +54,8 @@ jobs:
     steps:
       - name: Build combined updater manifest and publish
         uses: actions/github-script@v8
+        env:
+          RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
             const tag = context.ref.replace("refs/tags/", "");
@@ -70,11 +72,15 @@ jobs:
             };
             const signature = async (artifact) => {
               const sig = find(artifact.name + ".sig");
-              const response = await github.request("GET /repos/{owner}/{repo}/releases/assets/{asset_id}", {
-                owner, repo, asset_id: sig.id,
-                headers: { accept: "application/octet-stream" },
+              const response = await fetch(sig.url, {
+                headers: {
+                  accept: "application/octet-stream",
+                  authorization: `Bearer ${process.env.RELEASE_TOKEN}`,
+                  "x-github-api-version": "2022-11-28",
+                },
               });
-              return Buffer.from(response.data).toString("utf8").trim();
+              if (!response.ok) throw new Error(`Could not download ${sig.name}: ${response.status} ${await response.text()}`);
+              return (await response.text()).trim();
             };
             const entry = async (suffix) => {
               const artifact = find(suffix);
@@ -82,6 +88,7 @@ jobs:
             };
             const linuxAppImage = await entry("_amd64.AppImage");
             const linuxDeb = await entry("_amd64.deb");
+            const linuxRpm = await entry(".x86_64.rpm");
             const windowsNsis = await entry("_x64-setup.exe");
             const windowsMsi = await entry("_x64_en-US.msi");
             const macArm = await entry("_aarch64.app.tar.gz");
@@ -92,7 +99,9 @@ jobs:
               pub_date: new Date().toISOString(),
               platforms: {
                 "linux-x86_64": linuxAppImage,
+                "linux-x86_64-appimage": linuxAppImage,
                 "linux-x86_64-deb": linuxDeb,
+                "linux-x86_64-rpm": linuxRpm,
                 "windows-x86_64": windowsNsis,
                 "windows-x86_64-nsis": windowsNsis,
                 "windows-x86_64-msi": windowsMsi,
@@ -105,8 +114,15 @@ jobs:
             const existing = assets.find((asset) => asset.name === "latest.json");
             if (existing) await github.rest.repos.deleteReleaseAsset({ owner, repo, asset_id: existing.id });
             const data = Buffer.from(JSON.stringify(manifest, null, 2));
-            await github.request("POST /repos/{owner}/{repo}/releases/{release_id}/assets", {
-              owner, repo, release_id: release.id, name: "latest.json", data,
-              headers: { "content-type": "application/json", "content-length": data.length },
+            const upload = await fetch(`https://uploads.github.com/repos/${owner}/${repo}/releases/${release.id}/assets?name=latest.json`, {
+              method: "POST",
+              headers: {
+                accept: "application/vnd.github+json",
+                authorization: `Bearer ${process.env.RELEASE_TOKEN}`,
+                "content-type": "application/json",
+                "x-github-api-version": "2022-11-28",
+              },
+              body: data,
             });
+            if (!upload.ok) throw new Error(`Could not upload latest.json: ${upload.status} ${await upload.text()}`);
             await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: false });
