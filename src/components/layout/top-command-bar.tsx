@@ -1,7 +1,7 @@
-import { ChevronRightIcon, RotateCwIcon, SearchIcon } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
-import { MobileNavigation } from "@/components/layout/mobile-navigation";
+import { ChevronRightIcon, RotateCwIcon, SearchIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { useSearchStore } from "@/stores/search-store";
 
 export function TopCommandBar() {
@@ -32,8 +32,13 @@ export function TopCommandBar() {
   const currentLabel = pageLabel[pathname] ?? "DiskVacuum";
 
   return (
-    <header className="relative flex h-[4.5rem] items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-xl lg:px-6">
-      <MobileNavigation />
+    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-xl lg:px-6">
+      <SidebarTrigger
+        className="-ml-1"
+        aria-label="Toggle sidebar"
+        title="Toggle sidebar"
+      />
+      <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
       <nav
         aria-label="Breadcrumb"
         className="flex min-w-0 flex-1 items-center gap-1.5 text-sm"

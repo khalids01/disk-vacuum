@@ -1,24 +1,55 @@
-import { SidebarContent } from "@/components/layout/sidebar-content";
+import { Link } from "@tanstack/react-router";
+import { SidebarContent as AppSidebarContent } from "@/components/layout/sidebar-content";
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  Sidebar as SidebarPrimitive,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { UpdateSidebarNotice } from "@/features/updates/components/update-control";
 
 export function Sidebar() {
+  const { isMobile, state } = useSidebar();
+  const collapsed = !isMobile && state === "collapsed";
+
   return (
-    <aside className="hidden h-full w-64 shrink-0 flex-col border-r border-border bg-sidebar/95 shadow-[18px_0_50px_-42px_rgb(0_0_0_/_0.8)] lg:flex">
-      <div className="flex h-[4.5rem] shrink-0 items-center gap-3 border-b border-border px-5">
-        <img
-          src="/app-icon.png"
-          alt=""
-          className="size-9 rounded-xl shadow-[0_8px_18px_-8px_oklch(0.79_0.15_158)]"
-        />
-        <div>
-          <p className="text-[15px] font-bold tracking-[-0.035em]">
-            DiskVacuum
-          </p>
-          <p className="text-xs text-muted-foreground">Storage utility</p>
-        </div>
-      </div>
-      <SidebarContent />
-      <UpdateSidebarNotice />
-    </aside>
+    <SidebarPrimitive variant="floating" collapsible="icon">
+      <SidebarHeader className="h-16 justify-center border-b border-sidebar-border px-2">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              tooltip="DiskVacuum"
+              render={<Link to="/overview" />}
+              className="group-data-[collapsible=icon]:justify-center"
+            >
+              <img
+                src="/app-icon.png"
+                alt=""
+                className="size-8 shrink-0 rounded-lg shadow-[0_8px_18px_-8px_oklch(0.79_0.15_158)]"
+              />
+              <span className="min-w-0 group-data-[collapsible=icon]:hidden">
+                <span className="block truncate text-sm font-bold tracking-tight">
+                  DiskVacuum
+                </span>
+                <span className="block text-[11px] text-muted-foreground">
+                  Storage utility
+                </span>
+              </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <AppSidebarContent collapsed={collapsed} />
+      </SidebarContent>
+      <SidebarFooter className="p-0 group-data-[collapsible=icon]:hidden">
+        <UpdateSidebarNotice />
+      </SidebarFooter>
+    </SidebarPrimitive>
   );
 }
