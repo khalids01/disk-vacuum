@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/core/page-header";
 import { SectionCard } from "@/components/core/section-card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { previewCleanupTargets } from "@/features/cleanup/api/cleanup-api";
 import {
   scanBreadcrumbsQuery,
   scanDirectoryQuery,
@@ -84,6 +85,7 @@ function ScanExplorer({
   const [selected, setSelected] = useState<Map<number, ScanNodeSummary>>(
     new Map(),
   );
+  const [queueNotice, setQueueNotice] = useState<string | null>(null);
   const addToQueue = useCleanupQueueStore((state) => state.add);
   useEffect(() => {
     if (initialBreadcrumbs.data) {
@@ -103,30 +105,42 @@ function ScanExplorer({
   const page = directory.data;
   const pageEnd = page ? page.offset + page.items.length : 0;
   const queueMutation = useMutation({
-    mutationFn: async () =>
-      Promise.all(
+    mutationFn: async () => {
+      const details = await Promise.all(
         [...selected.values()].map((item) =>
           getScanNodeDetails(activeDirectory.id, item.id),
         ),
-      ),
-    onSuccess: (items) => {
+      );
+      const items = details.map((item) => ({
+        id: item.id,
+        parentDirectoryId: item.parentDirectoryId,
+        path: item.path,
+        name: item.name,
+        sizeBytes: item.sizeBytes,
+        source: "explorer" as const,
+        nodeKind: item.kind,
+      }));
+      const preview = await previewCleanupTargets(items);
+      return { items, preview };
+    },
+    onSuccess: ({ items, preview }) => {
+      const readyIds = new Set(preview.ready.map((item) => item.id));
       addToQueue(
-        items.map((item) => ({
-          id: item.id,
-          parentDirectoryId: item.parentDirectoryId,
-          path: item.path,
-          name: item.name,
-          sizeBytes: item.sizeBytes,
-          source: "explorer",
-          nodeKind: item.kind,
-        })),
+        items.filter((item) => readyIds.has(item.id)),
         summary.completedAtUnixSeconds,
+      );
+      setSelected(new Map());
+      setQueueNotice(
+        preview.rejected.length > 0
+          ? `${preview.rejected.length.toLocaleString()} protected ${preview.rejected.length === 1 ? "item was" : "items were"} not added. ${preview.rejected[0]?.reason ?? ""}`
+          : null,
       );
     },
   });
 
   function toggleItem(item: ScanNodeSummary) {
     if (item.category === "system") return;
+    setQueueNotice(null);
     setSelected((current) => {
       const next = new Map(current);
       if (next.has(item.id)) next.delete(item.id);
@@ -222,6 +236,9 @@ function ScanExplorer({
           <p className="mt-2 text-xs text-destructive">
             The selected items could not be verified against the saved scan.
           </p>
+        )}
+        {queueNotice && (
+          <p className="mt-2 text-xs text-amber-300">{queueNotice}</p>
         )}
       </div>
 

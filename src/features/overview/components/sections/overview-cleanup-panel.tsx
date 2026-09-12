@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRightIcon, BoxesIcon, BracesIcon, CopyIcon } from "lucide-react";
 import { SectionCard } from "@/components/core/section-card";
+import type { ScanSummary } from "@/features/scan/api/scan-api";
 
 const opportunities = [
   {
@@ -26,16 +27,40 @@ const opportunities = [
   },
 ];
 
-export function OverviewCleanupPanel() {
+export function OverviewCleanupPanel({
+  summary,
+  skippedCount,
+}: {
+  summary: ScanSummary;
+  skippedCount: number;
+}) {
   return (
-    <SectionCard className="flex min-h-full flex-col overflow-hidden border-primary/15 bg-card/90 p-5">
+    <SectionCard className="flex flex-col overflow-hidden border-primary/15 bg-card/90 p-5">
+      <div className="grid grid-cols-3 gap-2">
+        <MetricTile
+          label="Folders"
+          value={summary.directoryCount.toLocaleString()}
+          className="border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+        />
+        <MetricTile
+          label="Files"
+          value={summary.fileCount.toLocaleString()}
+          className="border-sky-400/20 bg-sky-400/10 text-sky-300"
+        />
+        <MetricTile
+          label="Notes"
+          value={skippedCount.toLocaleString()}
+          className="border-violet-400/20 bg-violet-400/10 text-violet-300"
+        />
+      </div>
+
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">
+        <p className="mt-6 text-xs font-bold tracking-[0.12em] text-muted-foreground uppercase">
           Cleanup opportunities
         </p>
         <Link
           to="/cleanup"
-          className="text-[10px] font-bold tracking-[0.1em] text-primary uppercase hover:text-primary/80"
+          className="mt-6 text-[10px] font-bold tracking-[0.1em] text-primary uppercase hover:text-primary/80"
         >
           View all
         </Link>
@@ -71,11 +96,32 @@ export function OverviewCleanupPanel() {
 
       <Link
         to="/cleanup"
-        className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-[0_12px_28px_-16px_oklch(0.79_0.15_158)] hover:bg-primary/85"
+        className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-[0_12px_28px_-16px_oklch(0.79_0.15_158)] hover:bg-primary/85"
       >
         Review cleanup
         <ArrowRightIcon className="size-3.5" />
       </Link>
     </SectionCard>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className: string;
+}) {
+  return (
+    <div className={`min-w-0 rounded-xl border px-2.5 py-3 ${className}`}>
+      <p className="truncate text-[9px] font-bold tracking-[0.08em] uppercase">
+        {label}
+      </p>
+      <p className="mt-1 truncate text-sm font-bold tracking-[-0.03em] text-foreground">
+        {value}
+      </p>
+    </div>
   );
 }

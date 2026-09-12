@@ -53,10 +53,10 @@ const categoryBarStyles: Record<ScanCategory, string> = {
   images: "bg-violet-500",
   video: "bg-fuchsia-500",
   audio: "bg-pink-500",
-  archives: "bg-amber-500",
+  archives: "bg-rose-500",
   developer: "bg-teal-500",
   ai: "bg-indigo-500",
-  caches: "bg-orange-500",
-  system: "bg-slate-500",
+  caches: "bg-lime-600",
+  system: "bg-cyan-600",
   other: "bg-zinc-500",
 };

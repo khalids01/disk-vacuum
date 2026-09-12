@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CleanupPolicy {
@@ -68,6 +68,13 @@ fn has_project_extension(parent: &Path, extensions: &[&str]) -> bool {
 }
 
 pub fn protected_path(path: &Path) -> bool {
+    if path == Path::new("/") || protected_user_path(path) {
+        return true;
+    }
+    #[cfg(unix)]
+    if path.parent() == Some(Path::new("/")) {
+        return true;
+    }
     #[cfg(target_os = "linux")]
     {
         const ROOTS: &[&str] = &[
@@ -86,13 +93,13 @@ pub fn protected_path(path: &Path) -> bool {
             "/snap",
             "/sys",
             "/usr",
-            "/var/lib",
-            "/var/lock",
-            "/var/run",
+            "/var",
         ];
+        const ANCHORS: &[&str] = &["/home", "/media", "/mnt", "/opt", "/srv", "/tmp"];
         return ROOTS
             .iter()
-            .any(|root| path == Path::new(root) || path.starts_with(root));
+            .any(|root| path == Path::new(root) || path.starts_with(root))
+            || ANCHORS.iter().any(|root| path == Path::new(root));
     }
     #[cfg(target_os = "macos")]
     {
@@ -148,6 +155,9 @@ fn macos_protected_path(path: &Path) -> bool {
         .strip_prefix("/System/Volumes/Data")
         .map(|suffix| Path::new("/").join(suffix))
         .unwrap_or_else(|_| path.to_path_buf());
+    if normalized == Path::new("/Users") || normalized == Path::new("/Volumes") {
+        return true;
+    }
     [
         "/System",
         "/Library",
@@ -159,6 +169,76 @@ fn macos_protected_path(path: &Path) -> bool {
     ]
     .iter()
     .any(|root| normalized == Path::new(root) || normalized.starts_with(root))
+}
+
+fn protected_user_path(path: &Path) -> bool {
+    let Some(home) = user_home() else {
+        return false;
+    };
+    protected_user_path_for(path, &home)
+}
+
+fn user_home() -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let value = std::env::var_os("USERPROFILE");
+    #[cfg(not(target_os = "windows"))]
+    let value = std::env::var_os("HOME");
+    value.map(PathBuf::from)
+}
+
+fn protected_user_path_for(path: &Path, home: &Path) -> bool {
+    if same_path(path, home) {
+        return true;
+    }
+    const PERSONAL_ANCHORS: &[&str] = &[
+        "Desktop",
+        "Documents",
+        "Downloads",
+        "Music",
+        "Pictures",
+        "Public",
+        "Templates",
+        "Videos",
+    ];
+    if PERSONAL_ANCHORS
+        .iter()
+        .any(|name| same_path(path, &home.join(name)))
+    {
+        return true;
+    }
+    const SENSITIVE_TREES: &[&str] = &[".ssh", ".gnupg", ".pki"];
+    SENSITIVE_TREES
+        .iter()
+        .any(|name| path_is_within(path, &home.join(name)))
+        || path_is_within(path, &home.join(".local/share/keyrings"))
+        || path_is_within(path, &home.join("Library/Keychains"))
+}
+
+#[cfg(not(target_os = "windows"))]
+fn same_path(path: &Path, root: &Path) -> bool {
+    path == root
+}
+
+#[cfg(target_os = "windows")]
+fn same_path(path: &Path, root: &Path) -> bool {
+    path.to_string_lossy()
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .eq_ignore_ascii_case(
+            root.to_string_lossy()
+                .replace('/', "\\")
+                .trim_end_matches('\\'),
+        )
+}
+
+#[cfg(not(target_os = "windows"))]
+fn path_is_within(path: &Path, root: &Path) -> bool {
+    path == root || path.starts_with(root)
+}
+
+#[cfg(target_os = "windows")]
+fn path_is_within(path: &Path, root: &Path) -> bool {
+    starts_with_windows_path(&path.to_string_lossy(), &root.to_string_lossy())
 }
 
 #[cfg(target_os = "windows")]
@@ -213,5 +293,32 @@ mod tests {
             )),
             CleanupPolicy::Protected
         );
+    }
+
+    #[test]
+    fn home_and_personal_folder_roots_are_protected() {
+        let home = Path::new("/home/example");
+        assert!(protected_user_path_for(home, home));
+        assert!(protected_user_path_for(
+            Path::new("/home/example/Desktop"),
+            home
+        ));
+        assert!(!protected_user_path_for(
+            Path::new("/home/example/Desktop/photo.jpg"),
+            home
+        ));
+    }
+
+    #[test]
+    fn credential_directories_are_protected_recursively() {
+        let home = Path::new("/home/example");
+        assert!(protected_user_path_for(
+            Path::new("/home/example/.ssh/id_ed25519"),
+            home
+        ));
+        assert!(protected_user_path_for(
+            Path::new("/home/example/.local/share/keyrings/login.keyring"),
+            home
+        ));
     }
 }

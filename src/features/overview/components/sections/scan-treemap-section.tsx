@@ -26,11 +26,11 @@ const categoryStyles: Record<ScanCategory, string> = {
   images: "border-violet-400/70 bg-violet-600/85 hover:bg-violet-500/90",
   video: "border-fuchsia-400/70 bg-fuchsia-600/85 hover:bg-fuchsia-500/90",
   audio: "border-pink-400/70 bg-pink-600/85 hover:bg-pink-500/90",
-  archives: "border-amber-300/70 bg-amber-600/85 hover:bg-amber-500/90",
+  archives: "border-rose-300/70 bg-rose-600/85 hover:bg-rose-500/90",
   developer: "border-teal-400/70 bg-teal-600/85 hover:bg-teal-500/90",
   ai: "border-indigo-400/70 bg-indigo-600/85 hover:bg-indigo-500/90",
-  caches: "border-orange-300/70 bg-orange-600/85 hover:bg-orange-500/90",
-  system: "border-amber-300/70 bg-amber-600/85 hover:bg-amber-500/90",
+  caches: "border-lime-300/70 bg-lime-700/85 hover:bg-lime-600/90",
+  system: "border-cyan-300/70 bg-cyan-700/85 hover:bg-cyan-600/90",
   other: "border-slate-400/70 bg-slate-600/85 hover:bg-slate-500/90",
 };
 
@@ -149,7 +149,7 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
           ) : (
             <>
               <section
-                className="relative h-[22rem] overflow-hidden bg-[#09140f] p-1 sm:h-[30rem]"
+                className="relative h-[22rem] overflow-hidden bg-[#09140f] sm:h-[30rem]"
                 aria-label={`Storage map for ${activeDirectory.name}`}
               >
                 {rectangles.map((rectangle, index) => {
@@ -170,8 +170,8 @@ export function ScanTreemapSection({ summary }: { summary: ScanSummary }) {
                       style={{
                         left: `${rectangle.x}%`,
                         top: `${rectangle.y}%`,
-                        width: `calc(${rectangle.width}% - 2px)`,
-                        height: `calc(${rectangle.height}% - 2px)`,
+                        width: `${rectangle.width}%`,
+                        height: `${rectangle.height}%`,
                       }}
                       onClick={() => selectNode(node)}
                       onDoubleClick={() => openNode(node)}

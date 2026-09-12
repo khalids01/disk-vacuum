@@ -27,24 +27,9 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
     <div className="space-y-6">
       <ScanProgressPanel />
       <StorageCommandCenter summary={summary} />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <ScanTreemapSection summary={summary} />
-        <OverviewCleanupPanel />
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Metric
-          label="Folders"
-          value={summary.directoryCount.toLocaleString()}
-        />
-        <Metric
-          label="Files inspected"
-          value={summary.fileCount.toLocaleString()}
-        />
-        <Metric
-          label="Scan coverage notes"
-          value={skippedCount.toLocaleString()}
-        />
+        <OverviewCleanupPanel summary={summary} skippedCount={skippedCount} />
       </div>
 
       <ScanCategorySection summary={summary} />
@@ -108,19 +93,5 @@ export function ScanSummarySection({ summary }: ScanSummarySectionProps) {
         </div>
       )}
     </div>
-  );
-}
-
-interface MetricProps {
-  label: string;
-  value: string;
-}
-
-function Metric({ label, value }: MetricProps) {
-  return (
-    <SectionCard className="border-border/80 bg-card/80 p-4">
-      <p className="text-[11px] font-semibold text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-bold tracking-[-0.045em]">{value}</p>
-    </SectionCard>
   );
 }
