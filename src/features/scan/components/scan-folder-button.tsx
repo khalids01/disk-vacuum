@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { scanDirectoryPath } from "@/features/scan/api/scan-api";
 import { useScanMutation } from "@/features/scan/hooks/use-scan-mutation";
+import { isAndroid } from "@/lib/platform";
 import { useScanStore } from "@/stores/scan-store";
 
 interface ScanFolderButtonProps
@@ -23,6 +24,8 @@ export function ScanFolderButton({
   const scanFolder = useScanMutation(scanDirectoryPath);
   const isScanActive =
     status === "scanning" || status === "cancelling" || scanFolder.isPending;
+
+  if (isAndroid) return null;
 
   async function chooseFolder() {
     try {

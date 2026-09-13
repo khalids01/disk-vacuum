@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">"DiskVacuum"</string>
+    <string name="main_activity_title">"DiskVacuum"</string>
+</resources>

@@ -617,7 +617,7 @@ fn scan_selected_directory_blocking(
     )
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "android")))]
 fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
     let disks = Disks::new_with_refreshed_list();
     let preferred_mount = if cfg!(target_os = "macos") {
@@ -650,7 +650,18 @@ fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
     Ok((root, capacity))
 }
 
-#[cfg(not(unix))]
+#[cfg(target_os = "android")]
+fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
+    let root = validate_scan_root(Path::new("/storage/emulated/0")).map_err(|_| {
+        ScanFailure::Message(
+            "Android storage access is required. Allow DiskVacuum to manage all files, then try again.",
+        )
+    })?;
+    let capacity = scan_capacity(&root, 0, 0).map_err(ScanFailure::Message)?;
+    Ok((root, capacity))
+}
+
+#[cfg(all(not(unix), not(target_os = "android")))]
 fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
     Err(ScanFailure::Message(
         "Whole-system scanning is currently available on macOS and Linux.",
@@ -658,6 +669,16 @@ fn resolve_system_storage() -> ScanResult<(PathBuf, ScanCapacity)> {
 }
 
 fn resolve_home_directory() -> ScanResult<PathBuf> {
+    #[cfg(target_os = "android")]
+    {
+        return validate_scan_root(Path::new("/storage/emulated/0")).map_err(|_| {
+            ScanFailure::Message(
+                "Android storage access is required. Allow DiskVacuum to manage all files, then try again.",
+            )
+        });
+    }
+
+    #[cfg(not(target_os = "android"))]
     let home_directory = if cfg!(windows) {
         env::var_os("USERPROFILE").map(PathBuf::from).or_else(|| {
             let drive = env::var_os("HOMEDRIVE")?;
@@ -668,10 +689,13 @@ fn resolve_home_directory() -> ScanResult<PathBuf> {
         env::var_os("HOME").map(PathBuf::from)
     };
 
-    let home_directory = home_directory.ok_or(ScanFailure::Message(
-        "Your home directory could not be located.",
-    ))?;
-    validate_scan_root(&home_directory)
+    #[cfg(not(target_os = "android"))]
+    {
+        let home_directory = home_directory.ok_or(ScanFailure::Message(
+            "Your home directory could not be located.",
+        ))?;
+        validate_scan_root(&home_directory)
+    }
 }
 
 fn validate_scan_root(path: &Path) -> ScanResult<PathBuf> {

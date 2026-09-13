@@ -26,7 +26,7 @@ Use this file to continue DiskVacuum work in a new chat. It describes the state 
 - Cleanup surfaces for large files, duplicates, developer artifacts, AI storage, and app leftovers; cleanup queue, review, move to trash, and permanent deletion with validation.
 - System-aware light/dark theme, responsive navigation, onboarding, settings, and signed in-app updater.
 - Published Linux AppImage/DEB/RPM, macOS Intel/Apple Silicon DMG, and Windows x64 EXE/MSI builds. Windows and macOS are still preview-level: CI builds do not prove complete runtime behavior or OS publisher notarization/code-signing.
-- Android is not shippable yet. Desktop unrestricted-filesystem assumptions must be redesigned for Android scoped storage and permissions; do not add an Android download without a real tested mobile build.
+- Android support is implemented in the working tree: the generated Tauri Android project requests All files access, scans `/storage/emulated/0`, keeps app-private scan state, disables system-Trash behavior, and produces an ARM64 debug APK locally. Physical-device verification and a signed release are still required before publishing the APK download.
 
 ## Release and updater flow
 

@@ -29,6 +29,7 @@ import {
   saveSettings,
 } from "@/features/settings/api/settings-api";
 import { settingsQuery } from "@/features/settings/api/settings-queries";
+import { isAndroid } from "@/lib/platform";
 
 const STEPS = ["Welcome", "Safety", "Permissions", "First scan"] as const;
 
@@ -43,11 +44,13 @@ export function OnboardingDialog() {
     onSuccess: (value) =>
       queryClient.setQueryData(settingsQuery.queryKey, value),
   });
-  const platform = navigator.userAgent.includes("Mac")
-    ? "macOS"
-    : navigator.userAgent.includes("Linux")
-      ? "Linux"
-      : "your operating system";
+  const platform = isAndroid
+    ? "Android"
+    : navigator.userAgent.includes("Mac")
+      ? "macOS"
+      : navigator.userAgent.includes("Linux")
+        ? "Linux"
+        : "your operating system";
   if (!settings.data || settings.data.onboardingComplete || dismissed)
     return null;
 
@@ -107,9 +110,11 @@ export function OnboardingDialog() {
           )}
           {step === 2 && (
             <Step icon={FolderSearchIcon} title={`${platform} access`}>
-              {platform === "macOS"
-                ? "A Home or custom-folder scan works with normal access. A complete system scan may require Full Disk Access in System Settings → Privacy & Security → Full Disk Access. DiskVacuum continues safely when access is denied."
-                : "DiskVacuum scans paths your user can read. Linux system scans may report permission-denied locations; those are counted and skipped without stopping the scan. You never need to run DiskVacuum as root."}
+              {platform === "Android"
+                ? "Android asks you to allow All files access so DiskVacuum can measure shared storage. Scans stay on your phone. Android has no system Trash, so deletion always requires explicit permanent-delete confirmation."
+                : platform === "macOS"
+                  ? "A Home or custom-folder scan works with normal access. A complete system scan may require Full Disk Access in System Settings → Privacy & Security → Full Disk Access. DiskVacuum continues safely when access is denied."
+                  : "DiskVacuum scans paths your user can read. Linux system scans may report permission-denied locations; those are counted and skipped without stopping the scan. You never need to run DiskVacuum as root."}
             </Step>
           )}
           {step === 3 && (
@@ -134,8 +139,12 @@ export function OnboardingDialog() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="system">Whole system</SelectItem>
-                    <SelectItem value="home">Home directory</SelectItem>
-                    <SelectItem value="folder">Choose a folder</SelectItem>
+                    <SelectItem value="home">
+                      {isAndroid ? "Shared storage" : "Home directory"}
+                    </SelectItem>
+                    {!isAndroid && (
+                      <SelectItem value="folder">Choose a folder</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

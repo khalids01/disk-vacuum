@@ -45,11 +45,16 @@ for (const marker of [
   'name="author" content="Khalid Khan"',
   'type="application/ld+json"',
   'class="js-version-number"',
+  'class="button button-secondary js-android-download"',
   'https://github.com/khalids01/disk-vacuum',
 ]) {
   if (!html.includes(marker) || !rootHtml.includes(marker)) {
     throw new Error(`Missing website metadata marker: ${marker}`);
   }
+}
+const websiteScript = await readFile(join(website, "app.js"), "utf8");
+if (!websiteScript.includes("androidApk") || !websiteScript.includes(".js-android-download")) {
+  throw new Error("The website does not hydrate the Android APK download.");
 }
 if (cname.trim() !== "diskvacuum.skycanvasstudio.com") {
   throw new Error("The website CNAME does not match the configured custom domain.");

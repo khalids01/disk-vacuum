@@ -22,7 +22,7 @@
 - Linux dev run: [x]
 - First release target: **macOS + Linux**
 - Windows: Later
-- Android: Later
+- Android: [-] APK builds locally; physical-device verification and signed release pending
 
 ---
 

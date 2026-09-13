@@ -11,6 +11,19 @@ use std::{collections::HashSet, fs, fs::File, io::Read, path::Path};
 use sysinfo::Disks;
 use tauri::State;
 
+fn move_to_trash(path: &str) -> Result<(), String> {
+    #[cfg(not(target_os = "android"))]
+    {
+        trash::delete(path).map_err(|error| error.to_string())
+    }
+
+    #[cfg(target_os = "android")]
+    {
+        let _ = path;
+        Err("Android does not provide a system Trash. Use permanent deletion after reviewing the selected files.".into())
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CleanupIssue {
@@ -60,7 +73,7 @@ pub async fn trash_duplicate_files(
             .ready
             .into_iter()
             .map(|file| {
-                let result = trash::delete(&file.path).map_err(|error| error.to_string());
+                let result = move_to_trash(&file.path);
                 (file, result)
             })
             .collect::<Vec<_>>()
@@ -392,7 +405,7 @@ pub async fn trash_cleanup_targets(
             .ready
             .into_iter()
             .map(|target| {
-                let result = trash::delete(&target.path).map_err(|error| error.to_string());
+                let result = move_to_trash(&target.path);
                 (target, result)
             })
             .collect::<Vec<_>>()

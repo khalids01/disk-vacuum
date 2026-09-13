@@ -3,6 +3,7 @@ import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { scanHomeDirectory } from "@/features/scan/api/scan-api";
 import { useScanMutation } from "@/features/scan/hooks/use-scan-mutation";
+import { isAndroid } from "@/lib/platform";
 import { useScanStore } from "@/stores/scan-store";
 
 interface ScanHomeButtonProps
@@ -14,7 +15,7 @@ interface ScanHomeButtonProps
 }
 
 export function ScanHomeButton({
-  children = "Scan Home",
+  children = isAndroid ? "Scan Storage" : "Scan Home",
   ...buttonProps
 }: ScanHomeButtonProps) {
   const status = useScanStore((state) => state.status);

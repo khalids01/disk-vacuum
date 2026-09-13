@@ -37,6 +37,7 @@ async function hydrateRelease() {
     const macIntel = assetFor(assets, /x64\.dmg$/i);
     const windowsExe = assetFor(assets, /x64-setup\.exe$/i);
     const windowsMsi = assetFor(assets, /x64_en-US\.msi$/i);
+    const androidApk = assetFor(assets, /universal\.apk$/i);
 
     setLinks(".js-linux-download", appImage);
     setLinks(".js-deb-download", deb);
@@ -45,6 +46,7 @@ async function hydrateRelease() {
     setLinks(".js-mac-intel-download", macIntel);
     setLinks(".js-windows-exe-download", windowsExe);
     setLinks(".js-windows-msi-download", windowsMsi);
+    setLinks(".js-android-download", androidApk);
 
     let preferred = appImage;
     let platformLabel = "for Linux";
@@ -55,8 +57,8 @@ async function hydrateRelease() {
       preferred = windowsExe ?? windowsMsi;
       platformLabel = "for Windows";
     } else if (platform === "android") {
-      preferred = undefined;
-      platformLabel = "— desktop builds available";
+      preferred = androidApk;
+      platformLabel = "for Android";
     }
 
     document.querySelectorAll(".js-primary-download").forEach((link) => {

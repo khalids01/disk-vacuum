@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#050c0a" />
-    <meta name="description" content="See what is using your storage, find safe cleanup opportunities, and reclaim disk space privately on Linux, macOS, and Windows." />
+    <meta name="description" content="See what is using your storage, find safe cleanup opportunities, and reclaim disk space privately on Linux, macOS, Windows, and Android." />
     <meta name="author" content="Khalid Khan" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
-    <meta name="keywords" content="disk analyzer, storage cleaner, disk cleanup, duplicate files, large files, Linux, macOS, Windows, open source" />
+    <meta name="keywords" content="disk analyzer, storage cleaner, disk cleanup, duplicate files, large files, Linux, macOS, Windows, Android, APK, open source" />
     <link rel="canonical" href="https://diskvacuum.skycanvasstudio.com/" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="DiskVacuum" />
@@ -17,7 +17,7 @@
     <meta property="og:image" content="https://diskvacuum.skycanvasstudio.com/website/assets/app-icon.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="DiskVacuum — Understand your storage" />
-    <meta name="twitter:description" content="A fast, private disk analyzer and cleanup assistant for Linux, macOS, and Windows." />
+    <meta name="twitter:description" content="A fast, private disk analyzer and cleanup assistant for Linux, macOS, Windows, and Android." />
     <meta name="twitter:image" content="https://diskvacuum.skycanvasstudio.com/website/assets/app-icon.png" />
     <title>DiskVacuum — Private disk analyzer and storage cleaner</title>
     <link rel="icon" href="website/assets/app-icon.png" />
@@ -29,7 +29,7 @@
     <link rel="stylesheet" href="website/styles.css" />
     <script src="website/app.js" defer></script>
     <script type="application/ld+json">
-      {"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskVacuum","applicationCategory":"UtilitiesApplication","operatingSystem":"Linux, macOS, Windows","softwareVersion":"0.1.11","url":"https://diskvacuum.skycanvasstudio.com/","downloadUrl":"https://github.com/khalids01/disk-vacuum/releases/latest","codeRepository":"https://github.com/khalids01/disk-vacuum","author":{"@type":"Person","name":"Khalid Khan","url":"https://github.com/khalids01"},"image":"https://diskvacuum.skycanvasstudio.com/website/assets/app-icon.png"}
+      {"@context":"https://schema.org","@type":"SoftwareApplication","name":"DiskVacuum","applicationCategory":"UtilitiesApplication","operatingSystem":"Linux, macOS, Windows, Android","softwareVersion":"0.1.11","url":"https://diskvacuum.skycanvasstudio.com/","downloadUrl":"https://github.com/khalids01/disk-vacuum/releases/latest","codeRepository":"https://github.com/khalids01/disk-vacuum","author":{"@type":"Person","name":"Khalid Khan","url":"https://github.com/khalids01"},"image":"https://diskvacuum.skycanvasstudio.com/website/assets/app-icon.png"}
     </script>
   </head>
   <body>
@@ -167,7 +167,7 @@
           <article class="platform-card featured reveal" data-platform="linux"><div class="platform-top"><div class="os-icon">Linux</div><span class="available">Available</span></div><h3>Linux</h3><p>Choose a portable AppImage or a native package for Debian, Ubuntu, Fedora, RHEL, and compatible distributions.</p><div class="package-downloads"><a class="button button-primary js-linux-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">AppImage <span>↓</span></a><a class="button button-secondary js-deb-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Debian / Ubuntu</a><a class="button button-secondary js-rpm-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Fedora / RHEL</a></div></article>
           <article class="platform-card reveal delay-one" data-platform="mac"><div class="platform-top"><div class="os-icon">⌘</div><span class="preview-status">Preview</span></div><h3>macOS</h3><p>Native packages for Apple Silicon and Intel. Public builds still require Apple notarization.</p><div class="split-download"><a class="button button-secondary js-mac-arm-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Apple Silicon</a><a class="button button-secondary js-mac-intel-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Intel</a></div><small class="platform-warning">Gatekeeper may block this early preview.</small></article>
           <article class="platform-card reveal delay-two" data-platform="windows"><div class="platform-top"><div class="os-icon windows-mark">⊞</div><span class="preview-status">Preview</span></div><h3>Windows</h3><p>Choose the standard setup executable or the Windows Installer package. Both are built for 64-bit Windows.</p><div class="split-download"><a class="button button-secondary js-windows-exe-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Setup .exe</a><a class="button button-secondary js-windows-msi-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Installer .msi</a></div><small class="platform-warning">Windows may show an unrecognized-publisher warning.</small></article>
-          <article class="platform-card unavailable reveal delay-three"><div class="platform-top"><div class="os-icon android-mark">Android</div><span>Planned</span></div><h3>Android</h3><p>A mobile-specific storage experience is planned around Android’s scoped-storage model.</p><button class="button button-disabled" disabled>Not available yet</button></article>
+          <article class="platform-card reveal delay-three" data-platform="android"><div class="platform-top"><div class="os-icon android-mark">Android</div><span class="preview-status">Preview</span></div><h3>Android</h3><p>Scan shared storage locally on your phone. Android asks for All files access and uses explicit permanent deletion because it has no system Trash.</p><a class="button button-secondary js-android-download" href="https://github.com/khalids01/disk-vacuum/releases/latest">Download APK</a><small class="platform-warning">Your browser may ask you to allow installation from this source.</small></article>
         </div>
         <p class="release-fallback">Looking for another format? <a href="https://github.com/khalids01/disk-vacuum/releases/latest">View all release files</a>.</p>
       </section>

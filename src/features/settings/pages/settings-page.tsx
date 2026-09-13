@@ -30,6 +30,7 @@ import {
 } from "@/features/settings/api/settings-api";
 import { settingsQuery } from "@/features/settings/api/settings-queries";
 import { UpdateControl } from "@/features/updates/components/update-control";
+import { isAndroid } from "@/lib/platform";
 import {
   MAX_ZOOM_LEVEL,
   MIN_ZOOM_LEVEL,
@@ -105,8 +106,12 @@ export function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="system">Whole system</SelectItem>
-                    <SelectItem value="home">Home directory</SelectItem>
-                    <SelectItem value="folder">Choose a folder</SelectItem>
+                    <SelectItem value="home">
+                      {isAndroid ? "Shared storage" : "Home directory"}
+                    </SelectItem>
+                    {!isAndroid && (
+                      <SelectItem value="folder">Choose a folder</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </Field>
@@ -141,47 +146,49 @@ export function SettingsPage() {
             </div>
           </SettingsSection>
 
-          <SettingsSection
-            title="Exclusions"
-            description="Excluded folders disappear on the next scan. Existing saved results remain visible until you rescan."
-          >
-            <Button
-              variant="outline"
-              onClick={() => void addExclusion()}
-              disabled={mutation.isPending}
+          {!isAndroid && (
+            <SettingsSection
+              title="Exclusions"
+              description="Excluded folders disappear on the next scan. Existing saved results remain visible until you rescan."
             >
-              <FolderPlusIcon data-icon="inline-start" />
-              Add excluded folder
-            </Button>
-            {settings.exclusions.length === 0 ? (
-              <p className="mt-4 rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
-                No folders are excluded.
-              </p>
-            ) : (
-              <div className="mt-4 divide-y divide-border rounded-lg border border-border">
-                {settings.exclusions.map((path) => (
-                  <div key={path} className="flex items-center gap-3 p-3">
-                    <PathText className="min-w-0 flex-1">{path}</PathText>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Remove exclusion ${path}`}
-                      disabled={mutation.isPending}
-                      onClick={() =>
-                        void update({
-                          exclusions: settings.exclusions.filter(
-                            (value) => value !== path,
-                          ),
-                        })
-                      }
-                    >
-                      <Trash2Icon />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </SettingsSection>
+              <Button
+                variant="outline"
+                onClick={() => void addExclusion()}
+                disabled={mutation.isPending}
+              >
+                <FolderPlusIcon data-icon="inline-start" />
+                Add excluded folder
+              </Button>
+              {settings.exclusions.length === 0 ? (
+                <p className="mt-4 rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">
+                  No folders are excluded.
+                </p>
+              ) : (
+                <div className="mt-4 divide-y divide-border rounded-lg border border-border">
+                  {settings.exclusions.map((path) => (
+                    <div key={path} className="flex items-center gap-3 p-3">
+                      <PathText className="min-w-0 flex-1">{path}</PathText>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Remove exclusion ${path}`}
+                        disabled={mutation.isPending}
+                        onClick={() =>
+                          void update({
+                            exclusions: settings.exclusions.filter(
+                              (value) => value !== path,
+                            ),
+                          })
+                        }
+                      >
+                        <Trash2Icon />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SettingsSection>
+          )}
 
           <SettingsSection
             title="Interface zoom"
@@ -234,7 +241,7 @@ export function SettingsPage() {
             description="Check the signed release channel manually or replay the first-run guide."
           >
             <div className="flex flex-wrap gap-2">
-              <UpdateControl />
+              {!isAndroid && <UpdateControl />}
               <Button
                 variant="outline"
                 disabled={mutation.isPending}
@@ -260,7 +267,11 @@ export function SettingsPage() {
 
           <SettingsSection
             title="Safety and privacy"
-            description="DiskVacuum analyzes storage locally and uses your operating system Trash for normal cleanup."
+            description={
+              isAndroid
+                ? "DiskVacuum analyzes Android shared storage locally. Android cleanup uses explicit permanent deletion."
+                : "DiskVacuum analyzes storage locally and uses your operating system Trash for normal cleanup."
+            }
           >
             <div className="flex gap-3 rounded-lg bg-emerald-500/8 p-4 text-sm">
               <ShieldCheckIcon className="mt-0.5 size-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -276,9 +287,10 @@ export function SettingsPage() {
               </div>
             </div>
             <p className="mt-4 text-sm text-muted-foreground">
-              No scan index or file contents are uploaded by DiskVacuum. Linux
-              permission-denied locations are counted in the scan summary. macOS
-              may require Full Disk Access for a complete system scan.
+              No scan index or file contents are uploaded by DiskVacuum.{" "}
+              {isAndroid
+                ? "Android requires All files access to analyze shared storage."
+                : "Linux permission-denied locations are counted in the scan summary. macOS may require Full Disk Access for a complete system scan."}
             </p>
           </SettingsSection>
           {mutation.isError && (

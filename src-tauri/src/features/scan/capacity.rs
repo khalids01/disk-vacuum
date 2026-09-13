@@ -2,7 +2,7 @@ use std::path::Path;
 
 use super::model::ScanCapacity;
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 pub fn scan_capacity(
     mount_point: &Path,
     _fallback_total: u64,
@@ -32,7 +32,7 @@ pub fn scan_capacity(
     ))
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 pub fn scan_capacity(
     _mount_point: &Path,
     total_space_bytes: u64,
@@ -47,7 +47,7 @@ pub fn scan_capacity(
     })
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn capacity_from_blocks(
     block_size: u64,
     total_blocks: u64,
@@ -67,7 +67,7 @@ fn capacity_from_blocks(
     }
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "android")))]
 mod tests {
     use super::capacity_from_blocks;
 
