@@ -843,6 +843,7 @@ dependencies = [
  "blake3",
  "libc",
  "rayon",
+ "rustls",
  "serde",
  "serde_json",
  "sysinfo",

@@ -9,6 +9,9 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "android")]
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let builder = tauri::Builder::default();
 
     #[cfg(not(target_os = "android"))]
