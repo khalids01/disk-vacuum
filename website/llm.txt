@@ -17,7 +17,7 @@ DiskVacuum scans storage locally, visualizes disk usage, finds large files and d
 - Linux: AppImage, Debian/Ubuntu DEB, Fedora/RHEL RPM
 - macOS: Apple Silicon and Intel DMG preview builds
 - Windows: 64-bit setup EXE and MSI preview builds
-- Android: planned, not currently available
+- Android: beta APK available; protected app storage is not fully represented yet
 
 ## Safety and privacy
 
