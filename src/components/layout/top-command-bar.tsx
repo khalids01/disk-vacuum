@@ -32,7 +32,7 @@ export function TopCommandBar() {
   const currentLabel = pageLabel[pathname] ?? "DiskVacuum";
 
   return (
-    <header className="relative flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-xl lg:px-6">
+    <header className="relative flex h-[calc(4rem+env(safe-area-inset-top))] shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:px-6">
       <SidebarTrigger
         className="-ml-1"
         aria-label="Toggle sidebar"

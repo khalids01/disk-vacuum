@@ -29,7 +29,7 @@ export function CleanupQueueBar() {
     0,
   );
   return (
-    <div className="absolute inset-x-4 bottom-4 z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-primary/30 bg-card/95 p-3 shadow-[0_22px_55px_-22px_rgb(0_0_0_/_0.8)] backdrop-blur-xl">
+    <div className="absolute inset-x-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-xl items-center gap-3 rounded-2xl border border-primary/30 bg-card/95 p-3 shadow-[0_22px_55px_-22px_rgb(0_0_0_/_0.8)] backdrop-blur-xl">
       <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground">
         <ListChecksIcon className="size-4" />
       </span>

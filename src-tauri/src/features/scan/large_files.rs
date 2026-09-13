@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, path::Path};
 
+use crate::features::safety::protected_path;
+
 use super::{
     model::{
         CompletedScan, LargeFileItem, LargeFileSafety, LargeFileSort, LargeFilesPage,
@@ -45,10 +47,13 @@ pub fn query_large_files(
             }) {
                 continue;
             }
-            if query
-                .safety
-                .is_some_and(|selected| selected != classify_safety(node.category))
-            {
+            if query.safety.is_some_and(|selected| {
+                selected
+                    != classify_safety(
+                        &node_path(completed_scan, directory.id, &node.name),
+                        node.category,
+                    )
+            }) {
                 continue;
             }
             if query.modified_before_unix_seconds.is_some_and(|cutoff| {
@@ -134,7 +139,7 @@ fn build_item(completed_scan: &CompletedScan, candidate: Candidate<'_>) -> Large
         size_bytes: candidate.node.size_bytes,
         modified_at_unix_seconds: candidate.node.modified_at_unix_seconds,
         category: candidate.node.category,
-        safety: classify_safety(candidate.node.category),
+        safety: classify_safety(&path, candidate.node.category),
     }
 }
 
@@ -142,11 +147,13 @@ fn file_extension(name: &str) -> Option<&str> {
     Path::new(name).extension().and_then(|value| value.to_str())
 }
 
-fn classify_safety(category: ScanCategory) -> LargeFileSafety {
-    match category {
-        ScanCategory::System | ScanCategory::Applications => LargeFileSafety::Protected,
-        ScanCategory::Caches => LargeFileSafety::LikelySafe,
-        _ => LargeFileSafety::Review,
+fn classify_safety(path: &Path, category: ScanCategory) -> LargeFileSafety {
+    if protected_path(path) {
+        LargeFileSafety::Protected
+    } else if category == ScanCategory::Caches {
+        LargeFileSafety::LikelySafe
+    } else {
+        LargeFileSafety::Review
     }
 }
 

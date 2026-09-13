@@ -105,6 +105,10 @@ pub fn protected_path(path: &Path) -> bool {
     {
         return macos_protected_path(path);
     }
+    #[cfg(target_os = "android")]
+    {
+        return android_protected_path(path);
+    }
     #[cfg(target_os = "windows")]
     {
         let normalized = path
@@ -143,10 +147,40 @@ pub fn protected_path(path: &Path) -> bool {
             .iter()
             .any(|name| normalized.ends_with(name));
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+    #[cfg(not(any(
+        target_os = "android",
+        target_os = "linux",
+        target_os = "macos",
+        target_os = "windows"
+    )))]
     {
         true
     }
+}
+
+#[cfg(any(target_os = "android", test))]
+fn android_protected_path(path: &Path) -> bool {
+    let shared_storage = Path::new("/storage/emulated/0");
+    if path == shared_storage {
+        return true;
+    }
+    if [
+        "DCIM",
+        "Documents",
+        "Download",
+        "Movies",
+        "Music",
+        "Pictures",
+    ]
+    .iter()
+    .any(|relative| path == shared_storage.join(relative))
+    {
+        return true;
+    }
+
+    ["Android/data", "Android/obb", ".android_secure"]
+        .iter()
+        .any(|relative| path_is_within(path, &shared_storage.join(relative)))
 }
 
 #[cfg(any(target_os = "macos", test))]
@@ -320,5 +354,16 @@ mod tests {
             Path::new("/home/example/.local/share/keyrings/login.keyring"),
             home
         ));
+    }
+
+    #[test]
+    fn android_shared_files_are_reviewable_but_managed_roots_are_protected() {
+        assert!(!android_protected_path(Path::new(
+            "/storage/emulated/0/Download/archive.zip"
+        )));
+        assert!(android_protected_path(Path::new(
+            "/storage/emulated/0/Android/data/example/cache"
+        )));
+        assert!(android_protected_path(Path::new("/storage/emulated/0")));
     }
 }

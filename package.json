@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "android": "bun tauri android dev",
     "build": "vite build && tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "format": "biome format --write .",

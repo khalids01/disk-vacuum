@@ -139,7 +139,6 @@ function ScanExplorer({
   });
 
   function toggleItem(item: ScanNodeSummary) {
-    if (item.category === "system") return;
     setQueueNotice(null);
     setSelected((current) => {
       const next = new Map(current);
@@ -267,12 +266,7 @@ function ScanExplorer({
               >
                 <Checkbox
                   checked={selected.has(item.id)}
-                  disabled={item.category === "system"}
-                  aria-label={
-                    item.category === "system"
-                      ? `${item.name} is protected`
-                      : `Select ${item.name}`
-                  }
+                  aria-label={`Select ${item.name}`}
                   onCheckedChange={() => toggleItem(item)}
                 />
                 <button

@@ -59,11 +59,15 @@ pub fn classify_path(path: &Path, is_directory: bool) -> ScanCategory {
 }
 
 fn classify_context(path: &Path) -> Option<ScanCategory> {
+    if is_system_location(path) {
+        return Some(ScanCategory::System);
+    }
+
     for component in path.components().rev() {
         let Some(name) = component.as_os_str().to_str() else {
             continue;
         };
-        let category = if matches_any(name, &["downloads"]) {
+        let category = if matches_any(name, &["download", "downloads"]) {
             ScanCategory::Downloads
         } else if matches_any(name, &["applications", "bin", "opt"]) {
             ScanCategory::Applications
@@ -78,6 +82,10 @@ fn classify_context(path: &Path) -> Option<ScanCategory> {
                 ".npm",
                 ".pnpm-store",
                 ".yarn",
+                ".bun",
+                ".codex",
+                ".vscode",
+                ".windsurf",
                 "__pycache__",
                 ".venv",
                 "venv",
@@ -88,14 +96,57 @@ fn classify_context(path: &Path) -> Option<ScanCategory> {
             ScanCategory::Caches
         } else if matches_any(name, &[".ollama", ".lmstudio", "huggingface", "models"]) {
             ScanCategory::Ai
-        } else if matches_any(name, &["system", "usr", "var", "etc", "library"]) {
-            ScanCategory::System
         } else {
             continue;
         };
         return Some(category);
     }
     None
+}
+
+fn is_system_location(path: &Path) -> bool {
+    let normalized = path
+        .strip_prefix("/System/Volumes/Data")
+        .map(|suffix| Path::new("/").join(suffix))
+        .unwrap_or_else(|_| path.to_path_buf());
+    if [
+        "/System",
+        "/Library",
+        "/Applications",
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/lib",
+        "/lib32",
+        "/lib64",
+        "/private",
+        "/proc",
+        "/run",
+        "/sbin",
+        "/sys",
+        "/usr",
+        "/var",
+    ]
+    .iter()
+    .any(|root| normalized == Path::new(root) || normalized.starts_with(root))
+    {
+        return true;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let normalized = path
+            .to_string_lossy()
+            .replace('/', "\\")
+            .to_ascii_lowercase();
+        return normalized.starts_with("c:\\windows\\")
+            || normalized.starts_with("c:\\program files\\")
+            || normalized.starts_with("c:\\programdata\\");
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    false
 }
 
 fn matches_any(value: &str, candidates: &[&str]) -> bool {
@@ -128,6 +179,25 @@ mod tests {
         assert_eq!(
             classify_path(Path::new("/work/node_modules/readme.md"), false),
             ScanCategory::Developer
+        );
+    }
+
+    #[test]
+    fn system_classification_uses_roots_not_folder_names() {
+        assert_eq!(
+            classify_path(
+                Path::new("/System/Volumes/Data/Users/khalid/.windsurf/cache.bin"),
+                false,
+            ),
+            ScanCategory::Developer
+        );
+        assert_eq!(
+            classify_path(Path::new("/System/Library/CoreServices/file.bin"), false),
+            ScanCategory::System
+        );
+        assert_eq!(
+            classify_path(Path::new("/storage/emulated/0/Download/archive.zip"), false),
+            ScanCategory::Downloads
         );
     }
 }

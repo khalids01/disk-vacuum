@@ -6,14 +6,14 @@ pub struct FileIdentity {
     inode: u64,
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "android")))]
 pub fn filesystem_id(metadata: &Metadata) -> Option<u64> {
     use std::os::unix::fs::MetadataExt;
 
     Some(metadata.dev())
 }
 
-#[cfg(not(unix))]
+#[cfg(any(not(unix), target_os = "android"))]
 pub fn filesystem_id(_metadata: &Metadata) -> Option<u64> {
     None
 }
@@ -35,7 +35,7 @@ pub fn allocated_size(metadata: &Metadata) -> u64 {
     metadata.len()
 }
 
-#[cfg(unix)]
+#[cfg(all(unix, not(target_os = "android")))]
 pub fn hard_link_identity(metadata: &Metadata) -> Option<FileIdentity> {
     use std::os::unix::fs::MetadataExt;
 
@@ -45,7 +45,7 @@ pub fn hard_link_identity(metadata: &Metadata) -> Option<FileIdentity> {
     })
 }
 
-#[cfg(not(unix))]
+#[cfg(any(not(unix), target_os = "android"))]
 pub fn hard_link_identity(_metadata: &Metadata) -> Option<FileIdentity> {
     None
 }

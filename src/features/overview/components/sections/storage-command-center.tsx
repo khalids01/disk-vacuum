@@ -4,6 +4,7 @@ import type { ScanCategory, ScanSummary } from "@/features/scan/api/scan-api";
 import { ScanHomeButton } from "@/features/scan/components/scan-home-button";
 import { ScanSystemButton } from "@/features/scan/components/scan-system-button";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import { isAndroid } from "@/lib/platform";
 
 const segmentColors: Record<ScanCategory, string> = {
   applications: "bg-emerald-500",
@@ -75,6 +76,14 @@ export function StorageCommandCenter({ summary }: { summary: ScanSummary }) {
             : `${summary.fileCount.toLocaleString()} files`}
         </span>
       </div>
+
+      {capacity && (
+        <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+          {formatBytes(summary.totalSizeBytes)} indexed from readable files.
+          {isAndroid &&
+            " Android keeps operating-system and other apps private data outside the shared-storage scan."}
+        </p>
+      )}
     </SectionCard>
   );
 }
