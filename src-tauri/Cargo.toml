@@ -1,6 +1,6 @@
 [package]
 name = "disk-vacuum"
-version = "0.1.14"
+version = "0.1.15"
 description = "A fast, visual cross-platform storage cleaner and disk analyzer."
 authors = ["Khalid Khan (@khalids01)"]
 homepage = "https://diskvacuum.skycanvasstudio.com/"

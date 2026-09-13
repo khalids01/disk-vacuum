@@ -59,8 +59,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
-      - name: Install Android SDK and NDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
       - run: bun install --frozen-lockfile
       - name: Verify release tag matches the app version
         run: bun run version:check
@@ -70,12 +68,11 @@ jobs:
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/disk-vacuum-release.jks"
       - name: Build universal signed APK
         env:
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.1.12297006
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/disk-vacuum-release.jks
           ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: bun tauri android build --apk --ci
+        run: NDK_HOME="$ANDROID_NDK_HOME" bun tauri android build --apk --ci
       - name: Upload APK to the draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
