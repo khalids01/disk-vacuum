@@ -25,10 +25,10 @@ pub fn scan_capacity(
     let available_blocks = statistics.f_bavail;
 
     Ok(capacity_from_blocks(
-        block_size,
-        total_blocks,
-        free_blocks,
-        available_blocks,
+        u64::from(block_size),
+        u64::from(total_blocks),
+        u64::from(free_blocks),
+        u64::from(available_blocks),
     ))
 }
 
