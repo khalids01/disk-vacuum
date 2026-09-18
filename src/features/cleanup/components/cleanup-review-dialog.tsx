@@ -20,13 +20,14 @@ import {
   trashCleanupTargets,
 } from "@/features/cleanup/api/cleanup-api";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
+import type { CleanupQueueItem } from "@/stores/cleanup-queue-store";
 
 export function CleanupReviewDialog({
   items,
   title,
   onComplete,
 }: {
-  items: CleanupTarget[];
+  items: (CleanupTarget | CleanupQueueItem)[];
   title: string;
   onComplete?: (result: CleanupResult) => void;
 }) {
@@ -90,7 +91,8 @@ export function CleanupReviewDialog({
                 <Issue key={issue.id} path={issue.path} reason={issue.reason} />
               ))}
               <p className="text-sm text-muted-foreground">
-                Files in Trash still use disk space. Empty the system Trash to actually reclaim it; storage totals refresh automatically.
+                Files in Trash still use disk space. Empty the system Trash to
+                actually reclaim it; storage totals refresh automatically.
               </p>
             </div>
           ) : (
@@ -108,7 +110,19 @@ export function CleanupReviewDialog({
                   )}
                 />
                 <Metric label="Destination" value="System Trash" />
-              <Notice>Moving items to Trash is reversible, but does not free disk space until you empty Trash.</Notice>
+                <Notice>
+                  Moving items to Trash is reversible, but does not free disk
+                  space until you empty Trash.
+                </Notice>
+                {items.some(isReviewItem) && (
+                  <Notice>
+                    {items.filter(isReviewItem).length.toLocaleString()}{" "}
+                    selected item
+                    {items.filter(isReviewItem).length === 1 ? " is" : "s are"}{" "}
+                    not proven regeneratable. Review the consequences below
+                    before continuing.
+                  </Notice>
+                )}
               </div>
               {preview.isPending && (
                 <Notice loading>
@@ -124,7 +138,8 @@ export function CleanupReviewDialog({
               )}
               {rejected.length > 0 && (
                 <Notice>
-                  {rejected.length.toLocaleString()} locations failed validation and will be skipped. Valid locations can still be moved.
+                  {rejected.length.toLocaleString()} locations failed validation
+                  and will be skipped. Valid locations can still be moved.
                 </Notice>
               )}
               <div className="mt-5 space-y-2">
@@ -142,6 +157,14 @@ export function CleanupReviewDialog({
                         </span>
                       </div>
                       <PathText className="mt-1 block">{item.path}</PathText>
+                      {"consequence" in item && (
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            Consequence:
+                          </span>{" "}
+                          {item.consequence}
+                        </p>
+                      )}
                       {issue && (
                         <p className="mt-1 text-xs text-destructive">
                           {issue.reason}
@@ -162,9 +185,7 @@ export function CleanupReviewDialog({
             <Button
               variant="destructive"
               disabled={
-                !preview.data ||
-                ready.length === 0 ||
-                cleanup.isPending
+                !preview.data || ready.length === 0 || cleanup.isPending
               }
               onClick={() => cleanup.mutate()}
             >
@@ -182,6 +203,9 @@ export function CleanupReviewDialog({
       </DialogContent>
     </Dialog>
   );
+}
+function isReviewItem(item: CleanupTarget | CleanupQueueItem) {
+  return "safety" in item && item.safety === "review";
 }
 function Metric({ label, value }: { label: string; value: string }) {
   return (

@@ -293,6 +293,9 @@ function DuplicateBrowser({
                     ...file,
                     source: "duplicates",
                     nodeKind: "file",
+                    safety: "regeneratable",
+                    consequence:
+                      "One confirmed copy remains; links or workflows that use this exact path may need updating.",
                   })),
                   scanVersion,
                 );
@@ -504,7 +507,9 @@ export function DuplicateReviewDialog({
                   value={result.failed.length.toLocaleString()}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">Files in Trash still use disk space until Trash is emptied.</p>
+              <p className="text-sm text-muted-foreground">
+                Files in Trash still use disk space until Trash is emptied.
+              </p>
               {result.failed.map((failure) => (
                 <div
                   key={failure.id}

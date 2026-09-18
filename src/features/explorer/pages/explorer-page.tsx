@@ -119,6 +119,9 @@ function ScanExplorer({
         sizeBytes: item.sizeBytes,
         source: "explorer" as const,
         nodeKind: item.kind,
+        safety: "review" as const,
+        consequence:
+          "This item is not proven regeneratable. Confirm its contents and ownership before removal.",
       }));
       const preview = await previewCleanupTargets(items);
       return { items, preview };

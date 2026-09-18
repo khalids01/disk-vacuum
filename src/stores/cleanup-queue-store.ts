@@ -9,11 +9,14 @@ export type CleanupSource =
   | "aiStorage"
   | "appLeftovers"
   | "duplicates";
+export type CleanupSafety = "regeneratable" | "review";
 export interface CleanupQueueItem extends CleanupTarget {
   source: CleanupSource;
   nodeKind: "file" | "directory";
   duplicateGroupId?: string;
   cleanupType?: string;
+  safety: CleanupSafety;
+  consequence: string;
 }
 
 interface CleanupQueueState {
@@ -33,44 +36,44 @@ const contains = (parent: string, child: string) =>
 export const useCleanupQueueStore = create<CleanupQueueState>()(
   persist(
     (set) => ({
-  scanVersion: null,
-  items: new Map(),
-  add: (incoming, scanVersion) =>
-    set((state) => {
-      const next =
-        state.scanVersion === scanVersion
-          ? new Map(state.items)
-          : new Map<string, CleanupQueueItem>();
-      for (const item of incoming) {
-        const path = normalized(item.path);
-        if ([...next.keys()].some((existing) => contains(existing, path)))
-          continue;
-        for (const existing of next.keys())
-          if (contains(path, existing)) next.delete(existing);
-        next.set(path, item);
-      }
-      return { items: next, scanVersion };
-    }),
-  remove: (path) =>
-    set((state) => {
-      const next = new Map(state.items);
-      next.delete(normalized(path));
-      return { items: next };
-    }),
-  removeIds: (ids) =>
-    set((state) => {
-      const removed = new Set(ids);
-      return {
-        items: new Map(
-          [...state.items].filter(([, item]) => !removed.has(item.id)),
-        ),
-      };
-    }),
+      scanVersion: null,
+      items: new Map(),
+      add: (incoming, scanVersion) =>
+        set((state) => {
+          const next =
+            state.scanVersion === scanVersion
+              ? new Map(state.items)
+              : new Map<string, CleanupQueueItem>();
+          for (const item of incoming) {
+            const path = normalized(item.path);
+            if ([...next.keys()].some((existing) => contains(existing, path)))
+              continue;
+            for (const existing of next.keys())
+              if (contains(path, existing)) next.delete(existing);
+            next.set(path, item);
+          }
+          return { items: next, scanVersion };
+        }),
+      remove: (path) =>
+        set((state) => {
+          const next = new Map(state.items);
+          next.delete(normalized(path));
+          return { items: next };
+        }),
+      removeIds: (ids) =>
+        set((state) => {
+          const removed = new Set(ids);
+          return {
+            items: new Map(
+              [...state.items].filter(([, item]) => !removed.has(item.id)),
+            ),
+          };
+        }),
       clear: () => set({ items: new Map(), scanVersion: null }),
     }),
     {
       name: "disk-vacuum-cleanup-queue",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage, {
         replacer: (_key, value) =>
           value instanceof Map
@@ -96,6 +99,20 @@ export const useCleanupQueueStore = create<CleanupQueueState>()(
         removeIds: state.removeIds,
         clear: state.clear,
       }),
+      migrate: (persisted) => {
+        const state = persisted as Partial<CleanupQueueState>;
+        const items = new Map(state.items ?? []);
+        for (const [path, item] of items) {
+          items.set(path, {
+            ...item,
+            safety: item.safety ?? "review",
+            consequence:
+              item.consequence ??
+              "This item was queued by an older DiskVacuum version. Review its path and ownership before removal.",
+          });
+        }
+        return { ...state, items };
+      },
     },
   ),
 );

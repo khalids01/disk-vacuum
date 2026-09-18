@@ -1,9 +1,12 @@
 import {
   BellRingIcon,
+  BugIcon,
   CheckCircle2Icon,
   DownloadIcon,
+  GaugeIcon,
   RefreshCwIcon,
   RotateCcwIcon,
+  ShieldCheckIcon,
   SparklesIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,6 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  parseReleaseNotes,
+  type ReleaseNoteCategory,
+} from "@/features/updates/lib/release-notes";
 import {
   type UpdateStatus,
   useUpdateStore,
@@ -251,6 +258,7 @@ function UpdateBody({
   }
 
   if (status === "available") {
+    const sections = parseReleaseNotes(notes);
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3 rounded-xl bg-primary/8 p-4">
@@ -266,9 +274,17 @@ function UpdateBody({
         </div>
         <div>
           <h3 className="mb-2 text-sm font-semibold">What is new</h3>
-          <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/35 p-4 text-sm leading-6 text-muted-foreground">
-            {notes ?? "No release notes were provided for this version."}
-          </div>
+          {sections.length > 0 ? (
+            <div className="grid max-h-64 gap-2 overflow-y-auto sm:grid-cols-3">
+              {sections.map((section) => (
+                <ReleaseNoteCard key={section.category} section={section} />
+              ))}
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border bg-muted/35 p-4 text-sm leading-6 text-muted-foreground">
+              {notes ?? "No release notes were provided for this version."}
+            </div>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
           DiskVacuum verifies the signed download before installing it.
@@ -320,6 +336,33 @@ function UpdateBody({
     <p className="text-sm text-muted-foreground">
       DiskVacuum checks the signed release channel automatically after launch.
     </p>
+  );
+}
+
+const RELEASE_NOTE_ICON: Record<ReleaseNoteCategory, typeof BugIcon> = {
+  bugFixes: BugIcon,
+  performance: GaugeIcon,
+  cleanup: ShieldCheckIcon,
+};
+
+function ReleaseNoteCard({
+  section,
+}: {
+  section: ReturnType<typeof parseReleaseNotes>[number];
+}) {
+  const Icon = RELEASE_NOTE_ICON[section.category];
+  return (
+    <div className="rounded-xl border border-border bg-muted/25 p-3">
+      <div className="flex items-center gap-2 text-sm font-semibold">
+        <Icon className="size-4 text-primary" />
+        {section.title}
+      </div>
+      <ul className="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+        {section.items.slice(0, 3).map((item) => (
+          <li key={item}>• {item}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

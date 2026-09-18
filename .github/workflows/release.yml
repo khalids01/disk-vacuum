@@ -90,18 +90,22 @@ jobs:
     needs: [build, android]
     runs-on: ubuntu-22.04
     steps:
+      - uses: actions/checkout@v5
       - name: Build combined updater manifest and publish
         uses: actions/github-script@v8
         env:
           RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
+            const fs = require("fs");
             const tag = context.ref.replace("refs/tags/", "");
             const version = tag.replace(/^v/, "");
             const { owner, repo } = context.repo;
             const releases = await github.paginate(github.rest.repos.listReleases, { owner, repo, per_page: 100 });
             const release = releases.find((candidate) => candidate.tag_name === tag);
             if (!release) throw new Error("Draft release not found for " + tag);
+            const curatedNotes = fs.readFileSync("release-notes.md", "utf8").trim();
+            if (!curatedNotes) throw new Error("release-notes.md must contain concise update notes");
             const assets = await github.paginate(github.rest.repos.listReleaseAssets, { owner, repo, release_id: release.id, per_page: 100 });
             const find = (suffix) => {
               const asset = assets.find((candidate) => candidate.name.endsWith(suffix));
@@ -135,7 +139,7 @@ jobs:
             const macIntel = await entry("_x64.app.tar.gz");
             const manifest = {
               version,
-              notes: release.body || "DiskVacuum " + tag,
+              notes: curatedNotes,
               pub_date: new Date().toISOString(),
               platforms: {
                 "linux-x86_64": linuxAppImage,
@@ -165,4 +169,6 @@ jobs:
               body: data,
             });
             if (!upload.ok) throw new Error(`Could not upload latest.json: ${upload.status} ${await upload.text()}`);
-            await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, draft: false });
+            const generatedNotes = (release.body || "").trim();
+            const releaseBody = generatedNotes ? `${curatedNotes}\n\n---\n\n${generatedNotes}` : curatedNotes;
+            await github.rest.repos.updateRelease({ owner, repo, release_id: release.id, body: releaseBody, draft: false });

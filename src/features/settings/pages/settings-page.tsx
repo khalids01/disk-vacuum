@@ -238,7 +238,11 @@ export function SettingsPage() {
 
           <SettingsSection
             title="Updates and onboarding"
-            description="Check the signed release channel manually or replay the first-run guide."
+            description={
+              isAndroid
+                ? "Replay the first-run guide. Android updates are delivered separately from the desktop signed-update channel."
+                : "Check the signed release channel manually or replay the first-run guide."
+            }
           >
             <div className="flex flex-wrap gap-2">
               {!isAndroid && <UpdateControl />}

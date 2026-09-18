@@ -35,9 +35,12 @@ GitHub Releases hosts both the installers and `latest.json`, so no separate upda
    ```
 
    It verifies aligned versions, a clean `main` branch, and an unused local and remote tag before pushing `main` and the matching tag. CI rejects a tag that does not match the embedded application version.
-4. The release workflow builds Linux, Windows, and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`. GitHub generates the release notes from the changes since the previous release, and those notes are shown in the in-app update dialog.
-5. Test from an installed older build. Development mode can check the channel but cannot safely simulate replacing an installed bundle.
+4. Update `release-notes.md` with short bullets under **Bug fixes**, **Performance improvements**, and **Cleanup improvements**. The release workflow uses this file for the concise in-app “What is new” cards, then appends GitHub's generated notes to the GitHub Release page.
+5. The release workflow builds Linux, Windows, and Intel/Apple Silicon macOS bundles, signs updater artifacts, publishes them, and uploads `latest.json`.
+6. Test from an installed older build. Development mode can check the channel but cannot safely simulate replacing an installed bundle.
 
 The first installed public build must already contain the configured updater public key; otherwise that installation cannot verify or install later updates.
 
 macOS distribution signing/notarization is separate from Tauri updater signing and must be configured before a public macOS release.
+
+The current in-app updater is desktop-only. Android releases include a signed APK, but Android update discovery and installation must use an Android-specific distribution flow (normally Google Play in-app updates, or a separately implemented signed-APK updater). The desktop `latest.json` does not contain an Android updater target.
