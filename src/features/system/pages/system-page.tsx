@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/core/page-header";
+import { StorageDiagnosticsSection } from "@/features/system/components/sections/storage-diagnostics-section";
 import { SystemInfoSection } from "@/features/system/components/sections/system-info-section";
 
 export function SystemPage() {
@@ -10,6 +11,7 @@ export function SystemPage() {
         description="Current device information, reported directly by the operating system."
       />
       <SystemInfoSection />
+      <StorageDiagnosticsSection />
     </div>
   );
 }

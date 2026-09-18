@@ -56,6 +56,7 @@ pub fn run() {
             features::scan::service::scan_home_directory,
             features::scan::service::scan_system_storage,
             features::system::get_system_info,
+            features::system::get_storage_diagnostics,
             features::settings::get_settings,
             features::settings::save_settings
         ])
