@@ -77,7 +77,7 @@ export function SidebarContent({
             {group.label}
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu>
+            <SidebarMenu className="gap-1">
               {group.items.map((item) => {
                 const active =
                   item.to === "/cleanup"
@@ -89,8 +89,7 @@ export function SidebarContent({
                       render={<Link to={item.to} onClick={onNavigate} />}
                       isActive={active}
                       tooltip={item.label}
-                      size="lg"
-                      className="text-muted-foreground [&_svg]:size-[18px] group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-active:text-sidebar-accent-foreground"
+                      className="h-9 py-1.5 text-muted-foreground [&_svg]:size-[18px] group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-active:text-sidebar-accent-foreground"
                       aria-label={collapsed ? item.label : undefined}
                     >
                       <item.icon />

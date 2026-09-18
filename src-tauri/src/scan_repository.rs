@@ -227,9 +227,19 @@ impl ScanRepository {
         id: u64,
         offset: usize,
         limit: usize,
+        category: Option<ScanCategory>,
     ) -> Result<ScanDirectoryPage, String> {
         let d = self.block(id)?;
-        let total = d.children.len();
+        let children = d
+            .children
+            .into_iter()
+            .filter(|node| {
+                category.is_none_or(|category| {
+                    node.kind == ScanNodeKind::Directory || node.category == category
+                })
+            })
+            .collect::<Vec<_>>();
+        let total = children.len();
         let offset = offset.min(total);
         Ok(ScanDirectoryPage {
             directory_id: id,
@@ -237,8 +247,7 @@ impl ScanRepository {
             name: d.name,
             total_items: total,
             offset,
-            items: d
-                .children
+            items: children
                 .into_iter()
                 .skip(offset)
                 .take(limit.clamp(1, MAX_PAGE))
@@ -1463,7 +1472,12 @@ mod tests {
             repo.load_scan_summary().unwrap().unwrap().target_label,
             "Home"
         );
-        assert_eq!(repo.directory(1, 0, 100).unwrap().items.len(), 3);
+        assert_eq!(repo.directory(1, 0, 100, None).unwrap().items.len(), 3);
+        let documents = repo
+            .directory(1, 0, 100, Some(ScanCategory::Documents))
+            .unwrap();
+        assert_eq!(documents.total_items, 1);
+        assert_eq!(documents.items[0].name, "notes.txt");
         assert_eq!(
             repo.breadcrumbs(1)
                 .unwrap()

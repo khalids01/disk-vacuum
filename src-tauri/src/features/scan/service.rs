@@ -390,12 +390,15 @@ pub async fn get_scan_directory(
     directory_id: u64,
     offset: usize,
     limit: usize,
+    category: Option<ScanCategory>,
     state: State<'_, AppState>,
 ) -> Result<ScanDirectoryPage, String> {
     let repository = state.scan_repository.clone();
-    tauri::async_runtime::spawn_blocking(move || repository.directory(directory_id, offset, limit))
-        .await
-        .map_err(|_| "DiskVacuum could not query the scanned directory.".to_owned())?
+    tauri::async_runtime::spawn_blocking(move || {
+        repository.directory(directory_id, offset, limit, category)
+    })
+    .await
+    .map_err(|_| "DiskVacuum could not query the scanned directory.".to_owned())?
 }
 
 #[tauri::command]
@@ -1113,7 +1116,7 @@ mod tests {
             .iter()
             .all(|item| item.name != "large.txt"));
         let root = repository
-            .directory(summary.root_directory_id, 0, 100)
+            .directory(summary.root_directory_id, 0, 100, None)
             .expect("root directory should be indexed");
         assert_eq!(root.items.len(), 2);
 

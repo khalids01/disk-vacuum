@@ -21,6 +21,7 @@ import {
 import { ExplorerEmptySection } from "@/features/explorer/components/sections/explorer-empty-section";
 import type {
   ScanBreadcrumbItem,
+  ScanCategory,
   ScanNodeSummary,
   ScanSummary,
 } from "@/features/scan/api/scan-api";
@@ -45,11 +46,7 @@ export function ExplorerPage() {
       />
       {currentScan ? (
         <ScanExplorer
-          key={
-            String(currentScan.completedAtUnixSeconds) +
-            "-" +
-            String(directoryId)
-          }
+          key={`${currentScan.completedAtUnixSeconds}-${directoryId}`}
           summary={currentScan}
           initialDirectoryId={directoryId}
         />
@@ -60,12 +57,16 @@ export function ExplorerPage() {
   );
 }
 
-function ScanExplorer({
+export function ScanExplorer({
   summary,
   initialDirectoryId,
+  category,
+  onExit,
 }: {
   summary: ScanSummary;
   initialDirectoryId?: number;
+  category?: ScanCategory;
+  onExit?: () => void;
 }) {
   const startsAtRoot =
     initialDirectoryId === undefined ||
@@ -100,6 +101,7 @@ function ScanExplorer({
       activeDirectory.id,
       offset,
       PAGE_SIZE,
+      category,
     ),
   );
   const page = directory.data;
@@ -154,18 +156,25 @@ function ScanExplorer({
   function openDirectory(id: number, name: string) {
     setBreadcrumbs((current) => [...current, { id, name }]);
     setOffset(0);
+    setSelected(new Map());
   }
 
   function openBreadcrumb(index: number) {
     setBreadcrumbs((current) => current.slice(0, index + 1));
     setOffset(0);
+    setSelected(new Map());
   }
 
   function goBack() {
+    if (breadcrumbs.length === 1 && onExit) {
+      onExit();
+      return;
+    }
     setBreadcrumbs((current) =>
       current.length > 1 ? current.slice(0, -1) : current,
     );
     setOffset(0);
+    setSelected(new Map());
   }
 
   return (
@@ -175,8 +184,12 @@ function ScanExplorer({
           <Button
             variant="outline"
             size="icon-sm"
-            aria-label="Go to parent folder"
-            disabled={breadcrumbs.length === 1}
+            aria-label={
+              breadcrumbs.length === 1 && onExit
+                ? "Back to storage categories"
+                : "Go to parent folder"
+            }
+            disabled={breadcrumbs.length === 1 && !onExit}
             onClick={goBack}
           >
             <ChevronLeftIcon />
@@ -203,9 +216,27 @@ function ScanExplorer({
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
           {page
-            ? `${page.totalItems.toLocaleString()} direct items · largest first`
+            ? `${page.totalItems.toLocaleString()} direct items · largest first${category ? ` · ${formatScanCategory(category)} files` : ""}`
             : "Loading scanned directory…"}
         </p>
+        {category && (
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/35 px-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              Browsing
+              <span className="font-medium text-foreground">
+                {` ${formatScanCategory(category)}`}
+              </span>
+              . Folders stay visible; files are filtered to this category.
+            </p>
+            <button
+              type="button"
+              className="text-xs font-medium text-primary hover:underline"
+              onClick={onExit}
+            >
+              Back to categories
+            </button>
+          </div>
+        )}
         {selected.size > 0 && (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-primary/8 p-3">
             <p className="text-sm font-medium">

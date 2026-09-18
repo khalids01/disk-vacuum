@@ -1,10 +1,28 @@
+import { ChevronRightIcon } from "lucide-react";
+import { useState } from "react";
 import { SectionCard } from "@/components/core/section-card";
+import { ScanExplorer } from "@/features/explorer/pages/explorer-page";
 import type { ScanCategory, ScanSummary } from "@/features/scan/api/scan-api";
 import { formatBytes } from "@/features/scan/lib/format-bytes";
 import { formatScanCategory } from "@/features/scan/lib/scan-category";
 
 export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
+  const [activeCategory, setActiveCategory] = useState<ScanCategory | null>(
+    null,
+  );
+
   if (summary.categories.length === 0) return null;
+
+  if (activeCategory) {
+    return (
+      <ScanExplorer
+        key={activeCategory}
+        summary={summary}
+        category={activeCategory}
+        onExit={() => setActiveCategory(null)}
+      />
+    );
+  }
 
   return (
     <SectionCard className="overflow-hidden">
@@ -22,14 +40,23 @@ export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
               : 0;
 
           return (
-            <div key={item.category} className="px-5 py-3.5">
+            <button
+              type="button"
+              key={item.category}
+              className="group block w-full px-5 py-3.5 text-left transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              aria-label={`Browse ${formatScanCategory(item.category)} storage`}
+              onClick={() => setActiveCategory(item.category)}
+            >
               <div className="flex items-center justify-between gap-4 text-sm">
                 <span className="font-medium">
                   {formatScanCategory(item.category)}
                 </span>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground sm:text-sm">
-                  {formatBytes(item.sizeBytes)} ·{" "}
-                  {item.fileCount.toLocaleString()} files
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="font-mono text-xs text-muted-foreground sm:text-sm">
+                    {formatBytes(item.sizeBytes)} ·{" "}
+                    {item.fileCount.toLocaleString()} files
+                  </span>
+                  <ChevronRightIcon className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
                 </span>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -38,7 +65,7 @@ export function ScanCategorySection({ summary }: { summary: ScanSummary }) {
                   style={{ width: `${Math.max(percent, 0.5)}%` }}
                 />
               </div>
-            </div>
+            </button>
           );
         })}
       </div>

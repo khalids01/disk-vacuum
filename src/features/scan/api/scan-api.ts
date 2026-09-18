@@ -141,11 +141,17 @@ export function getScanBreadcrumbs(directoryId: number) {
   return invoke<ScanBreadcrumbItem[]>("get_scan_breadcrumbs", { directoryId });
 }
 
-export function getScanDirectory(directoryId: number, offset = 0, limit = 200) {
+export function getScanDirectory(
+  directoryId: number,
+  offset = 0,
+  limit = 200,
+  category?: ScanCategory,
+) {
   return invoke<ScanDirectoryPage>("get_scan_directory", {
     directoryId,
     offset,
     limit,
+    category,
   });
 }
 
