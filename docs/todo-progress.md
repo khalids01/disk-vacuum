@@ -610,7 +610,8 @@ Only create when needed.
 - [x] Frontend build/typecheck, scoped Biome checks, Rust formatting, and 44 Rust tests passed
 - [!] Strict Clippy still reports existing warnings in duplicates, safety, scan capacity, and scan repository
 - [x] Missing-Cargo troubleshooting added to README; Rust and Linux prerequisites now present locally
-- [ ] Native macOS/Windows compilation and disposable-app runtime walkthroughs
+- [x] Native macOS/Windows compilation and automated tests passed in the v0.1.21 release workflow
+- [ ] Disposable-app runtime walkthroughs on macOS/Windows
 - [ ] Manual uninstall-modal walkthrough in Tauri
 
 ---
@@ -646,7 +647,7 @@ Only create when needed.
 - [x] Frontend build, scoped Biome, formatting, and 52 Rust tests passed; 67 portable PowerShell policy/entry-script checks passed (no native apps removed)
 - [x] Release workflow now gates installers on native Rust tests and Windows PowerShell 5.1/parser/policy checks
 - [!] Existing Clippy warnings remain outside Installed Apps
-- [ ] Native Windows PowerShell 5.1 and executable-path checks (run automatically in release CI)
+- [x] Native Windows PowerShell 5.1 and executable-path checks passed in v0.1.21 release CI
 - [ ] Windows release walkthrough: inventory, tooltip/icon actions, Locate, cache recycle, UAC, uninstall/cancel/refresh
 
 ---
@@ -660,7 +661,12 @@ Only create when needed.
 - [x] Close synced scan-index writer handles before renaming the generation on Windows
 - [x] Normalize Windows path separators, case, and canonical drive/UNC prefixes on both sides of protection checks
 - [x] Make path-format expectations in search/index tests portable
-- [ ] Native test gates and complete publication of corrected release
+- [x] Native test gates and complete publication of corrected release v0.1.21
+- [x] Linux, Windows, Intel macOS, Apple Silicon macOS, Android, and final publication jobs all passed
+- [x] Public updater manifest reports 0.1.21 with 11 signed platform entries and permanent tagged URLs
+- [x] All eight installer download URLs returned HTTP 200; 18 release assets present
+- Release: https://github.com/khalids01/disk-vacuum/releases/tag/v0.1.21
+- Workflow: https://github.com/khalids01/disk-vacuum/actions/runs/39162103861
 
 ---
 
