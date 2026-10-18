@@ -288,6 +288,27 @@ mod tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn test_directory(label: &str) -> std::path::PathBuf {
+        // macOS temporary directories resolve under protected /private/var.
+        // Positive cleanup fixtures belong in the user's home, and all test
+        // scan roots must be canonical just like roots supplied by production.
+        #[cfg(target_os = "macos")]
+        let parent =
+            std::path::PathBuf::from(std::env::var_os("HOME").expect("macOS home directory"));
+        #[cfg(not(target_os = "macos"))]
+        let parent = std::env::temp_dir();
+        let base = parent.join(format!(
+            ".disk-vacuum-{label}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&base).unwrap();
+        fs::canonicalize(base).unwrap()
+    }
+
     fn fixture(path: &Path, size: u64) -> DuplicateFile {
         DuplicateFile {
             id: 1,
@@ -302,13 +323,7 @@ mod tests {
 
     #[test]
     fn rejects_changed_content_and_paths_outside_scan_scope() {
-        let base = std::env::temp_dir().join(format!(
-            "disk-vacuum-cleanup-{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let base = test_directory("cleanup");
         let root = base.join("scan");
         fs::create_dir_all(&root).unwrap();
         let path = root.join("copy.bin");
@@ -337,9 +352,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn accepts_the_same_allocated_file_size_used_by_the_scanner() {
-        let base = std::env::temp_dir().join("disk-vacuum-cleanup-allocated-size-test");
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
+        let base = test_directory("allocated-size");
         let path = base.join("small.bin");
         fs::write(&path, b"small").unwrap();
         let scanned_size = allocated_size(&fs::metadata(&path).unwrap());
@@ -351,9 +364,7 @@ mod tests {
     #[test]
     fn rejects_symbolic_links() {
         use std::os::unix::fs::symlink;
-        let base = std::env::temp_dir().join("disk-vacuum-cleanup-symlink-test");
-        let _ = fs::remove_dir_all(&base);
-        fs::create_dir_all(&base).unwrap();
+        let base = test_directory("symlink");
         let target = base.join("target.bin");
         let link = base.join("link.bin");
         fs::write(&target, b"same").unwrap();

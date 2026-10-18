@@ -651,6 +651,16 @@ Only create when needed.
 
 ---
 
+# Release verification — native fixtures
+
+- [x] v0.1.19 Windows PowerShell 5.1 checks passed in GitHub Actions
+- [x] Native macOS compilation passed; test gate caught cleanup/settings fixture assumptions
+- [x] Canonicalize test paths and keep positive macOS cleanup fixtures outside protected /private/var
+- [x] Embed Common Controls v6 manifest in MSVC test harnesses as well as app binaries (Tauri issue #13419)
+- [ ] Native test gates and complete publication of corrected release
+
+---
+
 # Backend Phase 11 — Cleanup Safety Layer
 
 **Do not move user files before all items in this section are complete.**

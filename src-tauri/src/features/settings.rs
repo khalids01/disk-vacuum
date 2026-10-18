@@ -145,6 +145,9 @@ mod tests {
             std::env::temp_dir().join(format!("disk-vacuum-settings-{}", std::process::id()));
         let excluded = root.join("excluded");
         fs::create_dir_all(&excluded).expect("fixture should be created");
+        // Production callers supply canonical paths; /var on macOS and drive
+        // prefixes on Windows can differ from the lexical temporary path.
+        let excluded = fs::canonicalize(excluded).expect("fixture should canonicalize");
         let store = SettingsStore::open(&root).expect("settings should open");
         let mut value = store.get().expect("settings should load");
         value.large_file_threshold_mb = 256;
