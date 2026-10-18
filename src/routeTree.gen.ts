@@ -17,6 +17,7 @@ import { Route as CleanupQueueRouteImport } from './routes/cleanup-queue'
 import { Route as DeveloperCleanupRouteImport } from './routes/developer-cleanup'
 import { Route as DuplicatesRouteImport } from './routes/duplicates'
 import { Route as ExplorerRouteImport } from './routes/explorer'
+import { Route as InstalledAppsRouteImport } from './routes/installed-apps'
 import { Route as LargeFilesRouteImport } from './routes/large-files'
 import { Route as OverviewRouteImport } from './routes/overview'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -62,6 +63,11 @@ const ExplorerRoute = ExplorerRouteImport.update({
   path: '/explorer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InstalledAppsRoute = InstalledAppsRouteImport.update({
+  id: '/installed-apps',
+  path: '/installed-apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LargeFilesRoute = LargeFilesRouteImport.update({
   id: '/large-files',
   path: '/large-files',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
+  '/installed-apps': typeof InstalledAppsRoute
   '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
+  '/installed-apps': typeof InstalledAppsRoute
   '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/developer-cleanup': typeof DeveloperCleanupRoute
   '/duplicates': typeof DuplicatesRoute
   '/explorer': typeof ExplorerRoute
+  '/installed-apps': typeof InstalledAppsRoute
   '/large-files': typeof LargeFilesRoute
   '/overview': typeof OverviewRoute
   '/settings': typeof SettingsRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
+    | '/installed-apps'
     | '/large-files'
     | '/overview'
     | '/settings'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
+    | '/installed-apps'
     | '/large-files'
     | '/overview'
     | '/settings'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/developer-cleanup'
     | '/duplicates'
     | '/explorer'
+    | '/installed-apps'
     | '/large-files'
     | '/overview'
     | '/settings'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   DeveloperCleanupRoute: typeof DeveloperCleanupRoute
   DuplicatesRoute: typeof DuplicatesRoute
   ExplorerRoute: typeof ExplorerRoute
+  InstalledAppsRoute: typeof InstalledAppsRoute
   LargeFilesRoute: typeof LargeFilesRoute
   OverviewRoute: typeof OverviewRoute
   SettingsRoute: typeof SettingsRoute
@@ -244,6 +257,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExplorerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/installed-apps': {
+      id: '/installed-apps'
+      path: '/installed-apps'
+      fullPath: '/installed-apps'
+      preLoaderRoute: typeof InstalledAppsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/large-files': {
       id: '/large-files'
       path: '/large-files'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   DeveloperCleanupRoute: DeveloperCleanupRoute,
   DuplicatesRoute: DuplicatesRoute,
   ExplorerRoute: ExplorerRoute,
+  InstalledAppsRoute: InstalledAppsRoute,
   LargeFilesRoute: LargeFilesRoute,
   OverviewRoute: OverviewRoute,
   SettingsRoute: SettingsRoute,

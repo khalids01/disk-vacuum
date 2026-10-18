@@ -58,7 +58,10 @@ pub fn run() {
             features::system::get_system_info,
             features::system::get_storage_diagnostics,
             features::settings::get_settings,
-            features::settings::save_settings
+            features::settings::save_settings,
+            features::installed_apps::get_installed_apps,
+            features::installed_apps::clear_app_cache,
+            features::installed_apps::uninstall_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running DiskVacuum");

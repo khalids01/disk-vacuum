@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   FolderSearch2Icon,
   LayoutDashboardIcon,
+  PackageIcon,
   SettingsIcon,
   SparklesIcon,
 } from "lucide-react";
@@ -16,6 +17,7 @@ export type AppRoute =
   | "/developer-cleanup"
   | "/ai-storage"
   | "/app-leftovers"
+  | "/installed-apps"
   | "/system"
   | "/settings";
 
@@ -52,6 +54,12 @@ export const navigationGroups: NavigationGroup[] = [
         description: "Review reclaimable storage",
         icon: SparklesIcon,
         to: "/cleanup",
+      },
+      {
+        label: "Installed Apps",
+        description: "Linux app storage and cache",
+        icon: PackageIcon,
+        to: "/installed-apps",
       },
     ],
   },

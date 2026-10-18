@@ -26,6 +26,7 @@ export function TopCommandBar() {
     "/developer-cleanup": "Developer Cleanup",
     "/ai-storage": "AI Storage",
     "/app-leftovers": "App Leftovers",
+    "/installed-apps": "Installed Apps",
     "/system": "System",
     "/settings": "Settings",
   };

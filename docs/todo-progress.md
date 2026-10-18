@@ -585,6 +585,72 @@ Only create when needed.
 
 ---
 
+# Linux Installed Apps (new)
+
+- [x] Flatpak, Snap, and Debian desktop package inventory
+- [x] Package-reported or archive-backed installed size with unavailable state
+- [x] Dedicated Flatpak and Snap cache path and size when identifiable
+- [x] Search, size/name sorting, and per-app action review
+- [x] Cache moved to system Trash after native path validation
+- [x] Uninstall through the matching package manager; Debian removal previews dependent removals
+- [x] Frontend build, Rust check/tests, and formatting checks
+- [ ] Manual Tauri walkthrough of list, authentication, cache Trash, and uninstall on disposable apps
+
+---
+
+# Installed Apps — macOS and Windows
+
+- [x] Shared desktop inventory/action commands and navigation
+- [x] macOS Applications inventory, bundle size, bundle-ID caches, eligible app bundles moved to Trash
+- [x] Windows user/system, 32/64-bit desktop registry inventory and current-user Store/MSIX apps
+- [x] Registered executable/MSI uninstall, MSIX removal, and MSIX LocalCache cleanup
+- [x] Uninstall requires a modal naming the app; Cancel receives initial focus
+- [x] Prevent modal dismissal and additional actions while uninstall is pending
+- [x] Re-read inventory before actions; reject redirected cache/app paths
+- [x] Frontend build/typecheck, scoped Biome checks, Rust formatting, and 44 Rust tests passed
+- [!] Strict Clippy still reports existing warnings in duplicates, safety, scan capacity, and scan repository
+- [x] Missing-Cargo troubleshooting added to README; Rust and Linux prerequisites now present locally
+- [ ] Native macOS/Windows compilation and disposable-app runtime walkthroughs
+- [ ] Manual uninstall-modal walkthrough in Tauri
+
+---
+
+# Installed Apps — Linux safety and row actions (2026-10-19)
+
+- [x] User confirmed Linux uninstall by removing Barrier
+- [x] Hide Essential/Protected, required/important/standard-priority, automatic, held, and system-tool Debian packages
+- [x] Hide packages referenced by installed Depends, Pre-Depends, or Recommends, including alternatives and virtual providers
+- [x] Require visible user-facing desktop entries; filter system/settings/security launchers and Snap base/service packages
+- [x] Revalidate inventory before uninstall; reject APT previews involving other package removals, installs, or configuration; disable autoremove
+- [x] Locate, Clear cache, and Uninstall icon buttons with accessible labels and hover tooltips
+- [x] Explicit Storage and Cache rows with unavailable states; uninstall confirmation retained
+- [x] Add native app/executable location where identifiable on Linux, macOS, and Windows
+- [x] Production frontend build, scoped Biome checks, Rust formatting, and 49 Rust tests passed
+- [x] Read-only local inventory check passed separately: Deskflow, Firefox, Google Chrome, Podman Desktop; system tools absent
+- [!] Strict Clippy continues to report eight pre-existing warnings outside Installed Apps
+- [ ] Manual Tauri walkthrough of tooltips and Locate action; macOS/Windows runtime verification
+
+---
+
+# Installed Apps — Windows safety parity and release checks (2026-10-19)
+
+- [x] Shared icon actions, Storage/Cache labels, and uninstall confirmation on Windows and Linux
+- [x] Central Windows policy reused during inventory and immediately before uninstall
+- [x] Conservatively hide Microsoft/system, driver-vendor, runtime, update, security, framework, protected, and unknown registrations
+- [x] Hide Store/MSIX dependencies, frameworks/resources, system-signed/nonremovable packages, and packages without visible launchers
+- [x] Deduplicate shared 32/64-bit registry entries; preserve unavailable storage/cache values
+- [x] Require supported local executable uninstallers or validated MSI product GUIDs; reject shell hosts and ambiguous paths
+- [x] Per-system uninstall requests native elevation; failed/cancelled uninstall remains an error; MSI suppresses restart
+- [x] OS PowerShell path plus UTF-16/base64 command encoding and data-only app identifier
+- [x] Detect Windows reparse points/junctions during size traversal and cache path validation
+- [x] Frontend build, scoped Biome, formatting, and 52 Rust tests passed; 67 portable PowerShell policy/entry-script checks passed (no native apps removed)
+- [x] Release workflow now gates installers on native Rust tests and Windows PowerShell 5.1/parser/policy checks
+- [!] Existing Clippy warnings remain outside Installed Apps
+- [ ] Native Windows PowerShell 5.1 and executable-path checks (run automatically in release CI)
+- [ ] Windows release walkthrough: inventory, tooltip/icon actions, Locate, cache recycle, UAC, uninstall/cancel/refresh
+
+---
+
 # Backend Phase 11 — Cleanup Safety Layer
 
 **Do not move user files before all items in this section are complete.**

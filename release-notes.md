@@ -1,14 +1,14 @@
-# Bug fixes
+# Installed apps
 
-- Fixed adjacent sidebar items visually merging when one item was active and another was hovered.
-- Fixed cleanup selections carrying across folders during storage browsing.
+- Added Installed Apps on Linux, macOS, and Windows with search, sorting, storage and cache sizes, and Locate actions.
+- Added icon buttons with hover labels and confirmation before clearing cache or uninstalling apps.
+- Linux hides system components, protected packages, and apps other installed packages rely on; package removal previews must affect only the selected app.
+- Windows conservatively filters system components, runtimes, drivers, and package dependencies, and uses native uninstallers with administrator prompts when needed.
+- macOS can move eligible application bundles and identifiable caches to Trash.
 
-# Performance improvements
+# Reliability
 
-- Category browsing now filters the saved scan index without rescanning the filesystem.
+- Added Windows PowerShell policy checks and native Rust tests before release builds.
+- Improved redirected-path protection and missing-Cargo setup instructions.
 
-# Cleanup improvements
-
-- Added Linux diagnostics for hidden storage such as system journals, package caches, containers, disabled snaps, Flatpak data, snapshots, and deleted files still held open.
-- Added in-place category browsing on Overview with file and folder selection for the Cleanup Queue.
-- Improved cleanup safety explanations and update release notes.
+Windows and macOS app management remain previews pending hands-on verification. Uncertain entries and cache locations are intentionally unavailable.

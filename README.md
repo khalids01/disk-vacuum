@@ -87,9 +87,22 @@ On Debian or Ubuntu:
 
 ```bash
 sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+sudo apt install libwebkit2gtk-4.1-dev build-essential pkg-config curl wget file \
   libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
+
+Install Rust through [rustup](https://rustup.rs/) if Cargo is missing:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+sh /tmp/rustup-init.sh -y --profile minimal
+source "$HOME/.cargo/env"
+```
+
+A `cargo metadata` error with `No such file or directory` means Cargo is missing
+or absent from `PATH`. After installing Rust, source the environment above or
+open a new terminal. See [Tauri prerequisites](https://tauri.app/start/prerequisites/)
+for the platform requirements.
 
 Install dependencies and start development mode:
 

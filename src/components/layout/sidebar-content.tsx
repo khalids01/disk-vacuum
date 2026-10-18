@@ -78,28 +78,34 @@ export function SidebarContent({
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
-              {group.items.map((item) => {
-                const active =
-                  item.to === "/cleanup"
-                    ? cleanupRoutes.has(pathname)
-                    : pathname === item.to;
-                return (
-                  <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton
-                      render={<Link to={item.to} onClick={onNavigate} />}
-                      isActive={active}
-                      tooltip={item.label}
-                      className="h-9 py-1.5 text-muted-foreground [&_svg]:size-[18px] group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-active:text-sidebar-accent-foreground"
-                      aria-label={collapsed ? item.label : undefined}
-                    >
-                      <item.icon />
-                      <span className="group-data-[collapsible=icon]:hidden">
-                        {item.label}
-                      </span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {group.items
+                .filter(
+                  (item) =>
+                    item.to !== "/installed-apps" ||
+                    !/Android|iPhone|iPad/i.test(navigator.userAgent),
+                )
+                .map((item) => {
+                  const active =
+                    item.to === "/cleanup"
+                      ? cleanupRoutes.has(pathname)
+                      : pathname === item.to;
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton
+                        render={<Link to={item.to} onClick={onNavigate} />}
+                        isActive={active}
+                        tooltip={item.label}
+                        className="h-9 py-1.5 text-muted-foreground [&_svg]:size-[18px] group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0! data-active:text-sidebar-accent-foreground"
+                        aria-label={collapsed ? item.label : undefined}
+                      >
+                        <item.icon />
+                        <span className="group-data-[collapsible=icon]:hidden">
+                          {item.label}
+                        </span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
