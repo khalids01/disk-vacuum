@@ -916,6 +916,11 @@ fn write_generation(
     m.write_all(&serde_json::to_vec(&meta).map_err(|e| e.to_string())?)
         .map_err(ioe)?;
     m.sync_all().map_err(ioe)?;
+    // Windows cannot rename this directory while its writer handles are open.
+    // All content has been flushed and synced before publishing the generation.
+    drop(blocks);
+    drop(w);
+    drop(m);
     fs::rename(build, done).map_err(ioe)?;
     Ok(done.to_path_buf())
 }
@@ -1487,8 +1492,8 @@ mod tests {
             vec!["Home", "Documents"]
         );
         assert_eq!(
-            repo.node_details(1, 2).unwrap().path,
-            "/home/tester/Documents/movie.mkv"
+            Path::new(&repo.node_details(1, 2).unwrap().path),
+            Path::new("/home/tester/Documents/movie.mkv")
         );
         assert_eq!(repo.search("movie", 50).unwrap().results.len(), 1);
         let large = repo
@@ -1600,8 +1605,8 @@ mod tests {
         assert_eq!(report.groups[0].kind, DeveloperArtifactKind::NodeModules);
         assert_eq!(report.groups[0].items[0].project_name, "my-app");
         assert_eq!(
-            report.groups[0].items[0].path,
-            "/home/tester/my-app/node_modules"
+            Path::new(&report.groups[0].items[0].path),
+            Path::new("/home/tester/my-app/node_modules")
         );
         fs::remove_dir_all(path).unwrap();
     }

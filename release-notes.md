@@ -10,6 +10,7 @@
 
 - Added Windows PowerShell policy checks and native Rust tests before release builds.
 - Corrected platform-specific test fixtures and Windows test-harness startup while preserving cleanup protections.
+- Fixed Windows scan-index publishing and protected-path matching.
 - Improved redirected-path protection and missing-Cargo setup instructions.
 
 Windows and macOS app management remain previews pending hands-on verification. Uncertain entries and cache locations are intentionally unavailable.

@@ -299,8 +299,8 @@ mod tests {
         assert_eq!(response.results.len(), 1);
         assert_eq!(response.results[0].name, "report-final.pdf");
         assert_eq!(
-            response.results[0].path,
-            "/home/tester/Documents/report-final.pdf"
+            std::path::Path::new(&response.results[0].path),
+            std::path::Path::new("/home/tester/Documents/report-final.pdf")
         );
     }
 

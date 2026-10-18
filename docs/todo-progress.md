@@ -657,6 +657,9 @@ Only create when needed.
 - [x] Native macOS compilation passed; test gate caught cleanup/settings fixture assumptions
 - [x] Canonicalize test paths and keep positive macOS cleanup fixtures outside protected /private/var
 - [x] Embed Common Controls v6 manifest in MSVC test harnesses as well as app binaries (Tauri issue #13419)
+- [x] Close synced scan-index writer handles before renaming the generation on Windows
+- [x] Normalize Windows path separators, case, and canonical drive/UNC prefixes on both sides of protection checks
+- [x] Make path-format expectations in search/index tests portable
 - [ ] Native test gates and complete publication of corrected release
 
 ---

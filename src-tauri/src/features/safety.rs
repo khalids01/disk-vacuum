@@ -111,11 +111,8 @@ pub fn protected_path(path: &Path) -> bool {
     }
     #[cfg(target_os = "windows")]
     {
-        let normalized = path
-            .to_string_lossy()
-            .replace('/', "\\")
-            .to_ascii_lowercase();
-        if normalized.len() == 3 && normalized.as_bytes()[1] == b':' && normalized.ends_with('\\') {
+        let normalized = normalize_windows_path(&path.to_string_lossy());
+        if normalized.len() == 2 && normalized.as_bytes()[1] == b':' {
             return true;
         }
         let roots = [
@@ -255,14 +252,8 @@ fn same_path(path: &Path, root: &Path) -> bool {
 
 #[cfg(target_os = "windows")]
 fn same_path(path: &Path, root: &Path) -> bool {
-    path.to_string_lossy()
-        .replace('/', "\\")
-        .trim_end_matches('\\')
-        .eq_ignore_ascii_case(
-            root.to_string_lossy()
-                .replace('/', "\\")
-                .trim_end_matches('\\'),
-        )
+    normalize_windows_path(&path.to_string_lossy())
+        == normalize_windows_path(&root.to_string_lossy())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -275,12 +266,21 @@ fn path_is_within(path: &Path, root: &Path) -> bool {
     starts_with_windows_path(&path.to_string_lossy(), &root.to_string_lossy())
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", test))]
+fn normalize_windows_path(value: &str) -> String {
+    let value = value.replace('/', "\\").to_ascii_lowercase();
+    let value = if let Some(unc) = value.strip_prefix("\\\\?\\unc\\") {
+        format!("\\\\{unc}")
+    } else {
+        value.strip_prefix("\\\\?\\").unwrap_or(&value).to_owned()
+    };
+    value.trim_end_matches('\\').to_owned()
+}
+
+#[cfg(any(target_os = "windows", test))]
 fn starts_with_windows_path(path: &str, root: &str) -> bool {
-    let root = root
-        .replace('/', "\\")
-        .trim_end_matches('\\')
-        .to_ascii_lowercase();
+    let path = normalize_windows_path(path);
+    let root = normalize_windows_path(root);
     path == root
         || path
             .strip_prefix(&root)
@@ -290,6 +290,30 @@ fn starts_with_windows_path(path: &str, root: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn windows_protection_normalizes_both_paths_and_canonical_prefixes() {
+        assert!(starts_with_windows_path(
+            r"C:\Users\Example\.SSH\id_ed25519",
+            "c:/users/example/.ssh"
+        ));
+        assert!(starts_with_windows_path(
+            r"\\?\C:\Users\Example\.ssh\id_ed25519",
+            r"C:\Users\Example\.ssh"
+        ));
+        assert!(starts_with_windows_path(
+            r"\\?\UNC\server\share\folder\file",
+            r"\\server\share\folder"
+        ));
+        assert!(!starts_with_windows_path(
+            r"C:\Users\Example\.ssh-other\file",
+            r"C:\Users\Example\.ssh"
+        ));
+        assert!(!starts_with_windows_path(
+            r"C:\Windows-old\file",
+            r"C:\Windows"
+        ));
+    }
+
     #[test]
     fn obvious_system_paths_are_protected() {
         #[cfg(target_os = "linux")]
